@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "product": {
+      "title": "Product",
+      "description": "Represents a footwear item or fashion accessory in the store inventory.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the footwear."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed product description."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the product in Nigerian Naira (NGN)."
+        },
+        "images": {
+          "type": "array",
+          "description": "List of WebP/optimized image URLs for the product gallery."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category ID this product belongs to."
+        },
+        "stock": {
+          "type": "integer",
+          "description": "Current quantity available in inventory."
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Whether the product should be highlighted on the home page."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "draft", "out_of_stock"],
+          "description": "Product visibility status."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["name", "description", "price", "images", "category", "stock", "featured", "status", "createdAt", "updatedAt"]
+    },
+    "category": {
+      "title": "Category",
+      "description": "Represents a grouping of products (e.g., Sneakers, Heels).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the category."
+        },
+        "image": {
+          "type": "string",
+          "description": "Cover image URL for the category banner."
+        },
+        "productCount": {
+          "type": "integer",
+          "description": "Pre-calculated count of active products to optimize speed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["name", "image", "productCount", "createdAt"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Global store and contact details, business hours, and social media links.",
+      "type": "object",
+      "properties": {
+        "whatsappNumber": {
+          "type": "string",
+          "description": "WhatsApp contact number in active format (e.g., +234...)."
+        },
+        "contactAddress": {
+          "type": "string",
+          "description": "Physical storefront address in Lagos."
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Official Gmail/contact address."
+        },
+        "instagramUrl": {
+          "type": "string",
+          "description": "Instagram link."
+        },
+        "facebookUrl": {
+          "type": "string",
+          "description": "Facebook link."
+        },
+        "businessHours": {
+          "type": "string",
+          "description": "Weekly business hours description."
+        }
+      },
+      "required": ["whatsappNumber", "contactAddress", "contactEmail", "instagramUrl", "facebookUrl", "businessHours"]
+    },
+    "admin": {
+      "title": "Admin",
+      "description": "Internal record of users who are authorized store administrators.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "addedAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "product",
+      "description": "Footwear products and accessories database."
+    },
+    "/categories/{categoryId}": {
+      "schema": "category",
+      "description": "Categories for fast sorting and mobile browsing."
+    },
+    "/settings/{settingsId}": {
+      "schema": "settings",
+      "description": "Global shop configuration, address, social media links."
+    },
+    "/admins/{adminId}": {
+      "schema": "admin",
+      "description": "Allowed administrator users for Dashboard access."
+    }
+  }
+}

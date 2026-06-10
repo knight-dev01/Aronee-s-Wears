@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Catch-All Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Reusable Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        request.auth.token.email == "greatifet12@gmail.com" ||
+        request.auth.token.email == "aroneefashion@gmail.com"
+      );
+    }
+    
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email == "greatifet12@gmail.com" || 
+        request.auth.token.email == "aroneefashion@gmail.com" || 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    // Category Validation Blueprints
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'image', 'productCount', 'createdAt']) && 
+             data.keys().size() == 4 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.image is string && data.image.size() <= 2048 &&
+             data.productCount is int && data.productCount >= 0 &&
+             data.createdAt is timestamp;
+    }
+    
+    // Product Validation Blueprints
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'description', 'price', 'images', 'category', 'stock', 'featured', 'status', 'createdAt', 'updatedAt']) &&
+             data.keys().size() == 10 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.description is string && data.description.size() <= 2000 &&
+             (data.price is int || data.price is float) && data.price >= 0 &&
+             data.images is list && data.images.size() > 0 && data.images.size() <= 10 &&
+             data.images[0] is string &&
+             data.category is string && data.category.size() <= 128 &&
+             data.stock is int && data.stock >= 0 &&
+             data.featured is bool &&
+             data.status is string && (data.status == 'active' || data.status == 'draft' || data.status == 'out_of_stock') &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+    
+    // Settings Validation Blueprints
+    function isValidSettings(data) {
+      return data.keys().hasAll(['whatsappNumber', 'contactAddress', 'contactEmail', 'instagramUrl', 'facebookUrl', 'businessHours']) &&
+             data.keys().size() == 6 &&
+             data.whatsappNumber is string && data.whatsappNumber.size() > 0 && data.whatsappNumber.size() <= 30 &&
+             data.contactAddress is string && data.contactAddress.size() <= 500 &&
+             data.contactEmail is string && data.contactEmail.size() <= 150 &&
+             data.instagramUrl is string && data.instagramUrl.size() <= 500 &&
+             data.facebookUrl is string && data.facebookUrl.size() <= 500 &&
+             data.businessHours is string && data.businessHours.size() <= 200;
+    }
+    
+    // Admin Record Validation
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'addedAt']) &&
+             data.keys().size() == 2 &&
+             data.email is string && data.addedAt is timestamp;
+    }
+    
+    // --- Collection Routes ---
+    
+    // Categories Collection
+    match /categories/{categoryId} {
+      allow read: if true; // Publicly viewable
+      allow create: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming());
+      allow update: if isAdmin() && isValidCategory(incoming());
+      allow delete: if isAdmin();
+    }
+    
+    // Products Collection
+    match /products/{productId} {
+      // Non-admins can only read active products
+      allow get: if true;
+      allow list: if isAdmin() || (resource.data.status == 'active' || resource.data.status == 'out_of_stock');
+      
+      allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidProduct(incoming()) && incoming().updatedAt == request.time && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
+    }
+    
+    // Settings Collection
+    match /settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(settingsId) && isValidSettings(incoming());
+    }
+    
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
+      allow write: if isAdmin() && isValidId(adminId) && isValidAdmin(incoming());
+    }
+  }
+}
