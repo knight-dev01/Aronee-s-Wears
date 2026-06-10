@@ -34,12 +34,12 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>({
-    whatsappNumber: '+2348123456789',
-    contactAddress: 'Shop 14, Ikotun Fashion Plaza, Governor Road, Ikotun, Lagos, Nigeria',
+    whatsappNumber: '+2348182305492',
+    contactAddress: '1 Church Cl, Ikotun, Lagos 102213, Lagos, Nigeria',
     contactEmail: 'aroneefashion@gmail.com',
-    instagramUrl: 'https://instagram.com/aroneesfootwear',
+    instagramUrl: 'https://instagram.com/aroneeswears',
     facebookUrl: 'https://facebook.com/aroneesfootwear',
-    businessHours: 'Monday - Saturday: 8:00 AM - 7:00 PM'
+    businessHours: 'Monday - Sunday: 9:00 AM - 10:00 PM'
   });
 
   // Auth States
@@ -165,7 +165,7 @@ export default function App() {
         if (docSnap.exists()) {
           const d = docSnap.data();
           setSettings({
-            whatsappNumber: d.whatsappNumber || '+2348123456789',
+            whatsappNumber: d.whatsappNumber || '+2348182305492',
             contactAddress: d.contactAddress || '',
             contactEmail: d.contactEmail || '',
             instagramUrl: d.instagramUrl || '',
@@ -275,7 +275,7 @@ ${orderDetailLines}*Total Order Value:* ₦${totalVal.toLocaleString()}
 Please provide payment instructions and coordinate home delivery options.`;
 
     const encoded = encodeURIComponent(bodyText);
-    const whatsappClean = settings?.whatsappNumber?.replace(/\+/g, '') || '2348123456789';
+    const whatsappClean = settings?.whatsappNumber?.replace(/\+/g, '') || '2348182305492';
     window.open(`https://wa.me/${whatsappClean}?text=${encoded}`, '_blank');
     
     // Clear cart upon launch to reset
@@ -334,7 +334,7 @@ Please provide payment instructions and coordinate home delivery options.`;
             categories={categories}
             onBack={() => setSelectedProductId(null)}
             onSelectProduct={handleSelectProduct}
-            whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
+            whatsappNumber={settings?.whatsappNumber || '+2348182305492'}
             onAddToCart={handleAddToCart}
           />
         ) : (
@@ -346,7 +346,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                 categories={categories}
                 onViewChange={handleViewChange}
                 onSelectProduct={handleSelectProduct}
-                whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
+                whatsappNumber={settings?.whatsappNumber || '+2348182305492'}
               />
             )}
 

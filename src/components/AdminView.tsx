@@ -683,7 +683,7 @@ export default function AdminView({
                 onChange={e => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
                 className="w-full bg-gray-brand border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-brand outline-none focus:border-purple-brand transition-all"
               />
-              <span className="text-[9px] text-slate-brand/50 font-medium block">Complete with country code (e.g., +2348123456789)</span>
+              <span className="text-[9px] text-slate-brand/50 font-medium block">Complete with country code (e.g., +2348182305492)</span>
             </div>
 
             <div className="space-y-1.5">

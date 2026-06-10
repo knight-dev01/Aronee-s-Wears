@@ -184,12 +184,12 @@ export const defaultProducts: SeedProduct[] = [
 
 export const defaultSettings = {
   id: 'current',
-  whatsappNumber: '+2348123456789',
-  contactAddress: 'Shop 14, Ikotun Fashion Plaza, Governor Road, Ikotun, Lagos, Nigeria',
+  whatsappNumber: '+2348182305492',
+  contactAddress: '1 Church Cl, Ikotun, Lagos 102213, Lagos, Nigeria',
   contactEmail: 'aroneefashion@gmail.com',
-  instagramUrl: 'https://instagram.com/aroneesfootwear',
+  instagramUrl: 'https://instagram.com/aroneeswears',
   facebookUrl: 'https://facebook.com/aroneesfootwear',
-  businessHours: 'Monday - Saturday: 8:00 AM - 7:00 PM'
+  businessHours: 'Monday - Sunday: 9:00 AM - 10:00 PM'
 };
 
 export async function checkAndSeedDatabase() {
