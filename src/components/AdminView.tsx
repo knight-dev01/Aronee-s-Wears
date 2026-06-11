@@ -4,7 +4,7 @@ import {
   Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Upload, Loader2 
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, doc, updateDoc, deleteDoc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { forceResetDatabase } from '../data/seed';
@@ -297,11 +297,7 @@ export default function AdminView({
           productCount: 0,
           createdAt: serverTimestamp()
         };
-        await updateDoc(catRef, batchPayload).catch(async () => {
-          // If update fails due to document not existing, create it
-          const docRef = doc(db, 'categories', catId);
-          await updateDoc(docRef, batchPayload);
-        });
+        await setDoc(catRef, batchPayload);
         displayNotice('New category catalog registered!');
       }
       setIsCategoryFormOpen(false);
