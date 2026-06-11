@@ -5,8 +5,7 @@ import {
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { forceResetDatabase } from '../data/seed';
 
@@ -50,7 +49,8 @@ export default function AdminView({
   const [prodName, setProdName] = useState('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodPrice, setProdPrice] = useState<number>(0);
-  const [prodImages, setProdImages] = useState<string>('');
+  const [prodImages, setProdImages] = useState<string[]>([]);
+  const [manualImageUrl, setManualImageUrl] = useState('');
   const [prodCategory, setProdCategory] = useState('');
   const [prodStock, setProdStock] = useState<number>(0);
   const [prodFeatured, setProdFeatured] = useState<boolean>(false);
@@ -79,7 +79,8 @@ export default function AdminView({
       setProdName(prod.name);
       setProdDesc(prod.description);
       setProdPrice(prod.price);
-      setProdImages(prod.images.join(', '));
+      setProdImages(prod.images);
+      setManualImageUrl('');
       setProdCategory(prod.category);
       setProdStock(prod.stock);
       setProdFeatured(prod.featured);
@@ -89,7 +90,8 @@ export default function AdminView({
       setProdName('');
       setProdDesc('');
       setProdPrice(15000);
-      setProdImages('https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80');
+      setProdImages(['https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80']);
+      setManualImageUrl('');
       setProdCategory(categories[0]?.id || 'sneakers');
       setProdStock(10);
       setProdFeatured(false);
@@ -98,52 +100,75 @@ export default function AdminView({
     setIsProductFormOpen(true);
   };
 
-  // Product image upload from device
+  // Utility function to compress images and convert them to Base64
+  const compressAndConvertImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxWidth = 800;
+          const maxHeight = 800;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context not available'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Use JPEG format with 70% quality to reduce size to ~100KB
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  // Product image upload from device (converts directly to Base64)
   const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setIsUploading(true);
     setUploadProgress(0);
     const files = Array.from(e.target.files);
-    const uploadedUrls: string[] = [];
+    const processedImages: string[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileRef = ref(storage, `products/${Date.now()}_${cleanName}`);
-        const uploadTask = uploadBytesResumable(fileRef, file);
-
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const fileProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              const overallProgress = ((i + fileProgress / 100) / files.length) * 100;
-              setUploadProgress(Math.round(overallProgress));
-            },
-            (error) => {
-              console.error('Upload error:', error);
-              reject(error);
-            },
-            async () => {
-              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-              uploadedUrls.push(downloadUrl);
-              resolve();
-            }
-          );
-        });
+        const base64Str = await compressAndConvertImage(file);
+        processedImages.push(base64Str);
+        setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
 
-      // Append new URLs to existing ones
-      const currentImages = prodImages.trim();
-      const newImagesString = currentImages
-        ? `${currentImages}, ${uploadedUrls.join(', ')}`
-        : uploadedUrls.join(', ');
-      setProdImages(newImagesString);
-      displayNotice(`Successfully uploaded ${files.length} image(s)!`);
+      setProdImages([...prodImages, ...processedImages]);
+      displayNotice(`Successfully processed and added ${files.length} image(s)!`);
     } catch (err) {
       console.error(err);
-      alert('Failed to upload images. Make sure Firebase Storage rules allow authenticated writes.');
+      alert('Failed to process image files.');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -151,40 +176,22 @@ export default function AdminView({
     }
   };
 
-  // Category image upload from device
+  // Category image upload from device (converts directly to Base64)
   const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(30);
 
     try {
-      const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileRef = ref(storage, `categories/${Date.now()}_${cleanName}`);
-      const uploadTask = uploadBytesResumable(fileRef, file);
-
-      await new Promise<void>((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(Math.round(progress));
-          },
-          (error) => {
-            console.error('Upload error:', error);
-            reject(error);
-          },
-          async () => {
-            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            setCatImage(downloadUrl);
-            displayNotice('Category image uploaded successfully!');
-            resolve();
-          }
-        );
-      });
+      setUploadProgress(60);
+      const base64Str = await compressAndConvertImage(file);
+      setUploadProgress(100);
+      setCatImage(base64Str);
+      displayNotice('Category image processed and added successfully!');
     } catch (err) {
       console.error(err);
-      alert('Failed to upload category image. Check your Firebase Storage rules.');
+      alert('Failed to process category image.');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -197,7 +204,7 @@ export default function AdminView({
     e.preventDefault();
     setActionLoading(true);
     
-    const preparedImages = prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0);
+    const preparedImages = prodImages.map(img => img.trim()).filter(img => img.length > 0);
     const productPayload = {
       name: prodName,
       description: prodDesc,
@@ -935,13 +942,13 @@ export default function AdminView({
                 <div className="space-y-3 sm:col-span-2">
                   <div className="flex justify-between items-center">
                     <label className="font-bold text-slate-brand/85 uppercase">Image Gallery</label>
-                    <span className="text-[9px] text-slate-brand/40 uppercase">Upload or paste links</span>
+                    <span className="text-[9px] text-slate-brand/40 uppercase">Upload or add links</span>
                   </div>
 
                   {/* Thumbnail gallery */}
-                  {prodImages.trim().split(',').map(img => img.trim()).filter(img => img.length > 0).length > 0 && (
+                  {prodImages.filter(img => img.trim().length > 0).length > 0 && (
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 p-3.5 bg-gray-50 border border-gray-150 rounded-2xl">
-                      {prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0).map((url, idx) => (
+                      {prodImages.filter(img => img.trim().length > 0).map((url, idx) => (
                         <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-3xs bg-white">
                           <img 
                             src={url} 
@@ -954,9 +961,9 @@ export default function AdminView({
                           <button
                             type="button"
                             onClick={() => {
-                              const list = prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0);
+                              const list = [...prodImages];
                               list.splice(idx, 1);
-                              setProdImages(list.join(', '));
+                              setProdImages(list);
                             }}
                             className="absolute -top-1 -right-1 bg-red-650 hover:bg-red-750 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer transform scale-75"
                           >
@@ -967,7 +974,7 @@ export default function AdminView({
                     </div>
                   )}
 
-                  {/* Upload trigger & manual textarea */}
+                  {/* Upload trigger & manual input */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Device Upload Area */}
                     <div className="sm:col-span-1">
@@ -1002,14 +1009,31 @@ export default function AdminView({
                     </div>
 
                     {/* Manual Paste URLs Area */}
-                    <div className="sm:col-span-2">
-                      <textarea
-                        rows={3}
-                        placeholder="Or paste comma-separated URLs here manually..."
-                        value={prodImages}
-                        onChange={e => setProdImages(e.target.value)}
-                        className="w-full h-full bg-gray-brand border border-gray-200 rounded-2xl py-2.5 px-3.5 text-[10px] font-semibold text-slate-brand leading-relaxed outline-none focus:border-purple-brand resize-none font-mono"
-                      />
+                    <div className="sm:col-span-2 flex flex-col justify-between space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="Or paste image URL here..."
+                          value={manualImageUrl}
+                          onChange={e => setManualImageUrl(e.target.value)}
+                          className="flex-1 bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-[10px] font-semibold text-slate-brand outline-none focus:border-purple-brand font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (manualImageUrl.trim()) {
+                              setProdImages([...prodImages, manualImageUrl.trim()]);
+                              setManualImageUrl('');
+                            }
+                          }}
+                          className="bg-purple-brand text-white font-bold text-[10px] px-4 py-2.5 rounded-xl uppercase tracking-wider shadow-sm cursor-pointer shrink-0"
+                        >
+                          Add Link
+                        </button>
+                      </div>
+                      <span className="text-[9px] text-slate-brand/40 leading-relaxed block font-medium">
+                        Device files are compressed client-side to ensure fast loading times on mobile devices.
+                      </span>
                     </div>
                   </div>
                 </div>
