@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { 
   Plus, Edit, Trash2, LayoutDashboard, ShoppingCart, FolderTree, AlertTriangle, 
-  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw 
+  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Upload, Loader2 
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { forceResetDatabase } from '../data/seed';
 
@@ -59,6 +60,10 @@ export default function AdminView({
   const [catName, setCatName] = useState('');
   const [catImage, setCatImage] = useState('');
 
+  // Image Upload states
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   // Settings editable forms
   const [settingsForm, setSettingsForm] = useState<StoreSettings | null>(null);
 
@@ -91,6 +96,100 @@ export default function AdminView({
       setProdStatus('active');
     }
     setIsProductFormOpen(true);
+  };
+
+  // Product image upload from device
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setIsUploading(true);
+    setUploadProgress(0);
+    const files = Array.from(e.target.files);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const fileRef = ref(storage, `products/${Date.now()}_${cleanName}`);
+        const uploadTask = uploadBytesResumable(fileRef, file);
+
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const fileProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              const overallProgress = ((i + fileProgress / 100) / files.length) * 100;
+              setUploadProgress(Math.round(overallProgress));
+            },
+            (error) => {
+              console.error('Upload error:', error);
+              reject(error);
+            },
+            async () => {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              uploadedUrls.push(downloadUrl);
+              resolve();
+            }
+          );
+        });
+      }
+
+      // Append new URLs to existing ones
+      const currentImages = prodImages.trim();
+      const newImagesString = currentImages
+        ? `${currentImages}, ${uploadedUrls.join(', ')}`
+        : uploadedUrls.join(', ');
+      setProdImages(newImagesString);
+      displayNotice(`Successfully uploaded ${files.length} image(s)!`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to upload images. Make sure Firebase Storage rules allow authenticated writes.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      e.target.value = '';
+    }
+  };
+
+  // Category image upload from device
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+      const fileRef = ref(storage, `categories/${Date.now()}_${cleanName}`);
+      const uploadTask = uploadBytesResumable(fileRef, file);
+
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          },
+          async () => {
+            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+            setCatImage(downloadUrl);
+            displayNotice('Category image uploaded successfully!');
+            resolve();
+          }
+        );
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to upload category image. Check your Firebase Storage rules.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      e.target.value = '';
+    }
   };
 
   // Submit Product Form Changes
@@ -833,16 +932,86 @@ export default function AdminView({
                   </select>
                 </div>
 
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="font-bold text-slate-brand/85 uppercase flex justify-between">
-                    <span>Image Gallery URLs</span>
-                    <span className="text-[9px] text-purple-brand">Comma-delimited formatting</span>
-                  </label>
-                  <textarea
-                    required rows={2} placeholder="https://unsplash.com/... , https://unsplash.com/..."
-                    value={prodImages} onChange={e => setProdImages(e.target.value)}
-                    className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-[10.5px] text-slate-brand leading-relaxed outline-none focus:border-purple-brand"
-                  />
+                <div className="space-y-3 sm:col-span-2">
+                  <div className="flex justify-between items-center">
+                    <label className="font-bold text-slate-brand/85 uppercase">Image Gallery</label>
+                    <span className="text-[9px] text-slate-brand/40 uppercase">Upload or paste links</span>
+                  </div>
+
+                  {/* Thumbnail gallery */}
+                  {prodImages.trim().split(',').map(img => img.trim()).filter(img => img.length > 0).length > 0 && (
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 p-3.5 bg-gray-50 border border-gray-150 rounded-2xl">
+                      {prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0).map((url, idx) => (
+                        <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-3xs bg-white">
+                          <img 
+                            src={url} 
+                            alt="" 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&h=100&fit=crop';
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const list = prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0);
+                              list.splice(idx, 1);
+                              setProdImages(list.join(', '));
+                            }}
+                            className="absolute -top-1 -right-1 bg-red-650 hover:bg-red-750 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer transform scale-75"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload trigger & manual textarea */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Device Upload Area */}
+                    <div className="sm:col-span-1">
+                      <input
+                        type="file"
+                        id="product-image-upload"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProductImageUpload}
+                        disabled={isUploading}
+                      />
+                      <label
+                        htmlFor="product-image-upload"
+                        className={`h-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-purple-brand/60 rounded-2xl p-4.5 text-center cursor-pointer transition-all ${
+                          isUploading ? 'opacity-50 pointer-events-none' : ''
+                        }`}
+                      >
+                        {isUploading ? (
+                          <div className="flex flex-col items-center space-y-2">
+                            <Loader2 className="w-6 h-6 text-purple-brand animate-spin" />
+                            <span className="text-[10px] font-bold text-purple-brand font-mono">{uploadProgress}%</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center space-y-1">
+                            <Upload className="w-5 h-5 text-purple-brand" />
+                            <span className="text-[10px] font-extrabold text-slate-brand">Device Files</span>
+                            <span className="text-[8px] text-slate-brand/45 font-medium leading-none">Tap to upload</span>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+
+                    {/* Manual Paste URLs Area */}
+                    <div className="sm:col-span-2">
+                      <textarea
+                        rows={3}
+                        placeholder="Or paste comma-separated URLs here manually..."
+                        value={prodImages}
+                        onChange={e => setProdImages(e.target.value)}
+                        className="w-full h-full bg-gray-brand border border-gray-200 rounded-2xl py-2.5 px-3.5 text-[10px] font-semibold text-slate-brand leading-relaxed outline-none focus:border-purple-brand resize-none font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="sm:col-span-2 py-1 bg-gray-brand/50 rounded-xl px-4 flex items-center space-x-3 select-none">
@@ -904,13 +1073,73 @@ export default function AdminView({
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-brand/85 uppercase">Cover Image Banner URL</label>
-                <input
-                  type="url" required placeholder="https://images.unsplash.com/..."
-                  value={catImage} onChange={e => setCatImage(e.target.value)}
-                  className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-xs text-slate-brand outline-none focus:border-purple-brand transition-all"
-                />
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-slate-brand/85 uppercase">Cover Image Banner</label>
+                  <span className="text-[9px] text-slate-brand/40 uppercase">Upload or paste link</span>
+                </div>
+
+                {catImage.trim().length > 0 && (
+                  <div className="relative aspect-video rounded-2xl overflow-hidden border border-gray-205 shadow-3xs bg-white group max-h-36 flex items-center justify-center">
+                    <img 
+                      src={catImage} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=200&fit=crop';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCatImage('')}
+                      className="absolute top-2 right-2 bg-red-650 hover:bg-red-750 text-white rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="sm:col-span-1">
+                    <input
+                      type="file"
+                      id="category-image-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleCategoryImageUpload}
+                      disabled={isUploading}
+                    />
+                    <label
+                      htmlFor="category-image-upload"
+                      className={`h-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-purple-brand/60 rounded-2xl p-3 text-center cursor-pointer transition-all ${
+                        isUploading ? 'opacity-50 pointer-events-none' : ''
+                      }`}
+                    >
+                      {isUploading ? (
+                        <div className="flex flex-col items-center space-y-1">
+                          <Loader2 className="w-5 h-5 text-purple-brand animate-spin" />
+                          <span className="text-[9px] font-bold text-purple-brand font-mono">{uploadProgress}%</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center space-y-0.5">
+                          <Upload className="w-4 h-4 text-purple-brand" />
+                          <span className="text-[9px] font-extrabold text-slate-brand leading-none">Upload File</span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <input
+                      type="url"
+                      required
+                      placeholder="Or paste image URL here manually..."
+                      value={catImage}
+                      onChange={e => setCatImage(e.target.value)}
+                      className="w-full h-full bg-gray-brand border border-gray-200 rounded-2xl py-3.5 px-3.5 text-[10px] font-semibold text-slate-brand outline-none focus:border-purple-brand font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 border-t border-gray-100 flex justify-end space-x-3.5">

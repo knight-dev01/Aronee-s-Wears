@@ -37,7 +37,7 @@ export default function App() {
     whatsappNumber: '+2348182305492',
     contactAddress: '1 Church Cl, Ikotun, Lagos 102213, Lagos, Nigeria',
     contactEmail: 'aroneefashion@gmail.com',
-    instagramUrl: 'https://instagram.com/aroneeswears',
+    instagramUrl: 'https://www.instagram.com/aroneeswears?igsh=c3VmMnJucHE5bTN3',
     facebookUrl: 'https://facebook.com/aroneesfootwear',
     businessHours: 'Monday - Sunday: 9:00 AM - 10:00 PM'
   });
