@@ -200,7 +200,7 @@ export default function WalkthroughGuide() {
             <div className="space-y-2">
               <p className="text-[10px] text-gray-400 italic text-left">Pre-formatted message sent to store:</p>
               <div className="bg-emerald-950/40 border border-emerald-500/20 text-emerald-100 rounded-xl rounded-tr-none p-3 text-[10px] font-mono leading-relaxed space-y-1">
-                <p className="font-bold text-emerald-400">Order from Aronee's Wears:</p>
+                <p className="font-bold text-emerald-400">Order from Aronee Wears:</p>
                 <p>========================</p>
                 <p>• 1x Superstar Classic Red ({selectedSize})</p>
                 <p>========================</p>
@@ -236,7 +236,7 @@ export default function WalkthroughGuide() {
       title: "Store Management Workspace",
       badge: "STEP 5: ADMIN INSTRUMENTS",
       icon: Sparkles,
-      description: "For store owners: Aronee's Wears features a fully equipped admin workspace connected to Firebase.",
+      description: "For store owners: Aronee Wears features a fully equipped admin workspace connected to Firebase.",
       instructions: [
         "Login using your registered Google Account (aroneefashion@gmail.com).",
         "Add, update, or instantly delete product listings directly in cloud storage.",
@@ -311,7 +311,7 @@ export default function WalkthroughGuide() {
             <span>Interactive Guide</span>
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-brand">
-            How to Use Aronee's Wears
+            How to Use Aronee Wears
           </h2>
           <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
             Learn the complete process from discovering the catalog to placing order sheets or managing database inventory.

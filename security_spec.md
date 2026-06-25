@@ -1,4 +1,4 @@
-# Security Specification (TDD) for Aronee's Footwear
+# Security Specification (TDD) for Aronee Wears
 
 ## 1. Data Invariants
 - **Product Validity**: Every product must have a name (string <= 100 chars), price (positive integer), category reference (must exists), stock (integer >= 0), isFeatured (boolean), status (active, draft, or out_of_stock), images array (1 to 10 strings), and timestamp fields.

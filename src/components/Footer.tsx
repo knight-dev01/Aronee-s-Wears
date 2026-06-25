@@ -27,7 +27,7 @@ export default function Footer({
                 <span className="text-white font-bold text-lg">A</span>
               </div>
               <span className="font-display font-bold text-lg tracking-wider text-white">
-                ARONEE'S WEARS
+                ARONEE WEARS
               </span>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
@@ -129,7 +129,7 @@ export default function Footer({
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 text-xs text-gray-500 font-medium font-sans">
           <div>
-            &copy; {new Date().getFullYear()} ARONEE'S WEARS. All rights reserved. Registered in Nigeria.
+            &copy; {new Date().getFullYear()} ARONEE WEARS. All rights reserved. Registered in Nigeria.
           </div>
           <div className="flex space-x-5">
             <button onClick={() => onViewChange('admin')} className="hover:text-purple-brand cursor-pointer">

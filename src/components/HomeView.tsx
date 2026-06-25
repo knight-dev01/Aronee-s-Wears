@@ -70,7 +70,7 @@ export default function HomeView({
   const isProductsEmpty = products.length === 0;
 
   const handleCTAClick = () => {
-    const text = encodeURIComponent("Hello Aronee's Wears, I am browsing your e-commerce website and would like to order from your boutique! Please guide me on payment and delivery details.");
+    const text = encodeURIComponent("Hello Aronee Wears, I am browsing your e-commerce website and would like to order from your boutique! Please guide me on payment and delivery details.");
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 
@@ -330,7 +330,7 @@ export default function HomeView({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-brand">
-              Why Lagos Shops Aronee's Wears
+              Why Lagos Shops Aronee Wears
             </h2>
             <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
               We stand out in premium wears standards and dedicated customer delivery.

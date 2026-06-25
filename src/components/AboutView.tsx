@@ -26,7 +26,7 @@ export default function AboutView() {
       {/* Hero Header */}
       <section className="text-center max-w-3xl mx-auto space-y-4">
         <span className="text-purple-brand font-mono font-bold text-xs uppercase tracking-[0.25em] block">
-          Aronee's Wears Legacy
+          Aronee Wears Legacy
         </span>
         <h1 className="text-4xl sm:text-5xl font-extrabold font-display tracking-tight text-slate-brand">
           Fusing Premium Craft & Urban Style
@@ -45,13 +45,13 @@ export default function AboutView() {
           </h2>
           <div className="space-y-4 text-sm text-slate-brand/70 leading-relaxed font-sans">
             <p>
-              Founded in the bustling fashion hub of Ikotun, Lagos, **ARONEE'S WEARS** was birthed out of a straightforward necessity: providing genuine, premium shoes at fair workshop rates without compromising structural integrity or aesthetic appeal.
+              Founded in the bustling fashion hub of Ikotun, Lagos, **ARONEE WEARS** was birthed out of a straightforward necessity: providing genuine, premium shoes at fair workshop rates without compromising structural integrity or aesthetic appeal.
             </p>
             <p>
               We discovered that Nigerian shoppers often had to compromise between heavily priced international imports and low-grade knockoffs. We set out to change that by curating high-end sneakers, elegant high heels designed for Nigerian wedding occasions, durable handcrafted local leather sandals, and coordinating accessories.
             </p>
             <p>
-              Today, Aronee's Wears represents a household stamp of durability, and fashion-forward designs. By leveraging the speed and proximity of WhatsApp ordering, we bridge the gap between our physical Ikotun shopfront and modern smartphones throughout the continent.
+              Today, Aronee Wears represents a household stamp of durability, and fashion-forward designs. By leveraging the speed and proximity of WhatsApp ordering, we bridge the gap between our physical Ikotun shopfront and modern smartphones throughout the continent.
             </p>
           </div>
         </div>

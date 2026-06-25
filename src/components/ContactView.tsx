@@ -19,7 +19,7 @@ export default function ContactView({
 }: ContactViewProps) {
 
   const handleWhatsAppChat = () => {
-    const text = encodeURIComponent("Hello Aronee's Wears, I would like to make an inquiry about product availability and shipping!");
+    const text = encodeURIComponent("Hello Aronee Wears, I would like to make an inquiry about product availability and shipping!");
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 
@@ -166,7 +166,7 @@ export default function ContactView({
               <rect x="150" y="70" width="100" height="50" rx="6" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="1" />
               <text x="160" y="94" fill="#334155" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Ikotun Plaza</text>
 
-              {/* Aronee's Wears Pin */}
+              {/* Aronee Wears Pin */}
               <g className="animate-bounce">
                 <circle cx="200" cy="95" r="4" fill="#6A0DAD" />
                 <path d="M200 95 C195 85, 205 85, 200 95" fill="none" stroke="#6A0DAD" strokeWidth="2" />
@@ -179,7 +179,7 @@ export default function ContactView({
                 <rect x="-60" y="0" width="140" height="30" rx="8" fill="#1E293B" />
                 <polygon points="10,30 5,34 0,30" fill="#1E293B" />
                 <text x="-50" y="16" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
-                  ARONEE'S WEARS (Shop 14)
+                  ARONEE WEARS (Shop 14)
                 </text>
               </g>
             </svg>
@@ -190,7 +190,7 @@ export default function ContactView({
                 <div className="w-3.5 h-3.5 rounded-full bg-purple-brand flex items-center justify-center">
                   <span className="text-[7.5px] text-white font-bold">A</span>
                 </div>
-                <span className="text-[10px] font-bold text-slate-brand">Aronee's Wears (Shop 14)</span>
+                <span className="text-[10px] font-bold text-slate-brand">Aronee Wears (Shop 14)</span>
               </div>
               <button
                 onClick={handleWhatsAppChat}

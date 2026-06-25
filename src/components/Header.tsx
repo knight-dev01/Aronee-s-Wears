@@ -48,7 +48,7 @@ export default function Header({
             </div>
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg sm:text-xl tracking-wider text-slate-brand leading-none">
-                ARONEE'S
+                ARONEE
               </span>
               <span className="text-[10px] tracking-widest text-purple-brand font-medium uppercase leading-tight">
                 Wears

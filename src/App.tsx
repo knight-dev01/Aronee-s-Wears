@@ -311,7 +311,7 @@ export default function App() {
       orderDetailLines += `- ${item.product.name}${sizeStr}\n  Qty: ${item.quantity} x ₦${item.product.price.toLocaleString()} = ₦${rowSum.toLocaleString()}\n\n`;
     });
 
-    const bodyText = `Hello Aronee's Wears,
+    const bodyText = `Hello Aronee Wears,
 
 I would like to order the following fashion items from your storefront:
 
@@ -368,7 +368,7 @@ Please provide payment instructions and coordinate home delivery options.`;
               </div>
               <div className="space-y-1">
                 <h1 className="text-3xl font-extrabold font-display text-slate-brand tracking-tight">
-                  Aronee's Wears
+                  Aronee Wears
                 </h1>
                 <p className="text-purple-brand font-bold text-xs uppercase tracking-[0.3em]">
                   Style that defines you
@@ -396,7 +396,7 @@ Please provide payment instructions and coordinate home delivery options.`;
             </button>
 
             <p className="text-[10px] text-slate-brand/40 font-medium leading-relaxed">
-              By entering, you agree to receive email updates and promotional discounts from Aronee's Wears. You can unsubscribe at any time.
+              By entering, you agree to receive email updates and promotional discounts from Aronee Wears. You can unsubscribe at any time.
             </p>
           </div>
         </div>
@@ -520,7 +520,7 @@ Please provide payment instructions and coordinate home delivery options.`;
               <div className="p-6 border-b border-gray-150 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">WhatsApp Order Draft</h3>
-                  <p className="text-[10px] text-slate-brand/50 font-medium">Draft multiple shoes and message Aronee's Wears all at once!</p>
+                  <p className="text-[10px] text-slate-brand/50 font-medium">Draft multiple shoes and message Aronee Wears all at once!</p>
                 </div>
                 <button onClick={() => setIsCartOpen(false)} className="p-2 text-slate-brand/40 hover:text-red-700 cursor-pointer">
                   <X className="w-5 h-5" />

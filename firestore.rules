@@ -53,7 +53,6 @@ service cloud.firestore {
     // Product Validation Blueprints
     function isValidProduct(data) {
       return data.keys().hasAll(['name', 'description', 'price', 'images', 'category', 'stock', 'featured', 'status', 'createdAt', 'updatedAt']) &&
-             data.keys().size() == 10 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
              data.description is string && data.description.size() <= 2000 &&
              (data.price is int || data.price is float) && data.price >= 0 &&

@@ -1,4 +1,4 @@
-import { doc, getDocs, collection, writeBatch, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, getDocs, collection, writeBatch, serverTimestamp, getDoc, query, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export interface SeedCategory {
@@ -194,11 +194,15 @@ export const defaultSettings = {
 
 export async function checkAndSeedDatabase() {
   try {
-    // Check settings first, which is publicly readable and doesn't trigger products subscription filters
+    // Check settings first
     const settingsDocRef = doc(db, 'settings', 'current');
     const settingsSnap = await getDoc(settingsDocRef);
-    if (!settingsSnap.exists()) {
-      console.log('Database empty. Seeding starting...');
+    
+    // Also check if products exist
+    const productsSnap = await getDocs(query(collection(db, 'products'), limit(1)));
+    
+    if (!settingsSnap.exists() || productsSnap.empty) {
+      console.log('Database appears empty or incomplete. Seeding starting...');
       
       const batch = writeBatch(db);
       

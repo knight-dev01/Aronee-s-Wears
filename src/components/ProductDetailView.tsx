@@ -58,7 +58,7 @@ export default function ProductDetailView({
     const formattingPrice = product.price.toLocaleString();
     const sizeLine = isBags ? '' : `\nSize: ${selectedSize}`;
 
-    const text = `Hello Aronee's Wears,
+    const text = `Hello Aronee Wears,
 
 I would like to order:
 
