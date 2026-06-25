@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { 
   Plus, Edit, Trash2, LayoutDashboard, ShoppingCart, FolderTree, AlertTriangle, 
-  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Upload, Loader2 
+  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Database 
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { addDoc, doc, updateDoc, deleteDoc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { forceResetDatabase } from '../data/seed';
+import BulkUpload from './BulkUpload';
 
 interface AdminViewProps {
   user: FirebaseUser | null;
@@ -32,7 +33,7 @@ export default function AdminView({
 }: AdminViewProps) {
   
   // Dashboard navigation sub-state
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'inventory' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'inventory' | 'bulk' | 'settings'>('overview');
 
   // Load Status feedback
   const [actionSuccess, setActionSuccess] = useState<string>('');
@@ -49,8 +50,7 @@ export default function AdminView({
   const [prodName, setProdName] = useState('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodPrice, setProdPrice] = useState<number>(0);
-  const [prodImages, setProdImages] = useState<string[]>([]);
-  const [manualImageUrl, setManualImageUrl] = useState('');
+  const [prodImages, setProdImages] = useState<string>('');
   const [prodCategory, setProdCategory] = useState('');
   const [prodStock, setProdStock] = useState<number>(0);
   const [prodFeatured, setProdFeatured] = useState<boolean>(false);
@@ -59,10 +59,6 @@ export default function AdminView({
   // Category Form Input field binds
   const [catName, setCatName] = useState('');
   const [catImage, setCatImage] = useState('');
-
-  // Image Upload states
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Settings editable forms
   const [settingsForm, setSettingsForm] = useState<StoreSettings | null>(null);
@@ -79,8 +75,7 @@ export default function AdminView({
       setProdName(prod.name);
       setProdDesc(prod.description);
       setProdPrice(prod.price);
-      setProdImages(prod.images);
-      setManualImageUrl('');
+      setProdImages(prod.images.join(', '));
       setProdCategory(prod.category);
       setProdStock(prod.stock);
       setProdFeatured(prod.featured);
@@ -90,8 +85,7 @@ export default function AdminView({
       setProdName('');
       setProdDesc('');
       setProdPrice(15000);
-      setProdImages(['https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80']);
-      setManualImageUrl('');
+      setProdImages('https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80');
       setProdCategory(categories[0]?.id || 'sneakers');
       setProdStock(10);
       setProdFeatured(false);
@@ -100,111 +94,12 @@ export default function AdminView({
     setIsProductFormOpen(true);
   };
 
-  // Utility function to compress images and convert them to Base64
-  const compressAndConvertImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxWidth = 800;
-          const maxHeight = 800;
-
-          if (width > height) {
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = Math.round((width * maxHeight) / height);
-              height = maxHeight;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas context not available'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Use JPEG format with 70% quality to reduce size to ~100KB
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          resolve(dataUrl);
-        };
-        img.onerror = (err) => reject(err);
-      };
-      reader.onerror = (err) => reject(err);
-    });
-  };
-
-  // Product image upload from device (converts directly to Base64)
-  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    setIsUploading(true);
-    setUploadProgress(0);
-    const files = Array.from(e.target.files);
-    const processedImages: string[] = [];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const base64Str = await compressAndConvertImage(file);
-        processedImages.push(base64Str);
-        setUploadProgress(Math.round(((i + 1) / files.length) * 100));
-      }
-
-      setProdImages([...prodImages, ...processedImages]);
-      displayNotice(`Successfully processed and added ${files.length} image(s)!`);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to process image files.');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      e.target.value = '';
-    }
-  };
-
-  // Category image upload from device (converts directly to Base64)
-  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-    setIsUploading(true);
-    setUploadProgress(30);
-
-    try {
-      setUploadProgress(60);
-      const base64Str = await compressAndConvertImage(file);
-      setUploadProgress(100);
-      setCatImage(base64Str);
-      displayNotice('Category image processed and added successfully!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to process category image.');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      e.target.value = '';
-    }
-  };
-
   // Submit Product Form Changes
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
     
-    const preparedImages = prodImages.map(img => img.trim()).filter(img => img.length > 0);
+    const preparedImages = prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0);
     const productPayload = {
       name: prodName,
       description: prodDesc,
@@ -297,7 +192,11 @@ export default function AdminView({
           productCount: 0,
           createdAt: serverTimestamp()
         };
-        await setDoc(catRef, batchPayload);
+        await updateDoc(catRef, batchPayload).catch(async () => {
+          // If update fails due to document not existing, create it
+          const docRef = doc(db, 'categories', catId);
+          await updateDoc(docRef, batchPayload);
+        });
         displayNotice('New category catalog registered!');
       }
       setIsCategoryFormOpen(false);
@@ -455,6 +354,7 @@ export default function AdminView({
           { label: 'Products', value: 'products' as const, icon: ShoppingCart },
           { label: 'Categories', value: 'categories' as const, icon: FolderTree },
           { label: 'Stock Alerts', value: 'inventory' as const, icon: AlertTriangle },
+          { label: 'Bulk Upload', value: 'bulk' as const, icon: Database },
           { label: 'Contact Settings', value: 'settings' as const, icon: Settings }
         ].map((t) => {
           const isSelected = activeTab === t.value;
@@ -765,7 +665,17 @@ export default function AdminView({
         </div>
       )}
 
-      {/* TAB 5: CONTACTS AND WHATSAPP SETTINGS */}
+      {/* TAB 5: BULK UPLOAD */}
+      {activeTab === 'bulk' && (
+        <BulkUpload 
+          categories={categories} 
+          onSuccess={async () => {
+            await onRefreshData();
+          }} 
+        />
+      )}
+
+      {/* TAB 6: CONTACTS AND WHATSAPP SETTINGS */}
       {activeTab === 'settings' && settingsForm && (
         <form onSubmit={handleSaveSettings} className="space-y-6 max-w-2xl bg-white border border-gray-100 p-8 rounded-3xl shadow-xs animate-fade-in font-sans leading-relaxed">
           
@@ -785,7 +695,7 @@ export default function AdminView({
                 onChange={e => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
                 className="w-full bg-gray-brand border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-brand outline-none focus:border-purple-brand transition-all"
               />
-              <span className="text-[9px] text-slate-brand/50 font-medium block">Complete with country code (e.g., +2348182305492)</span>
+              <span className="text-[9px] text-slate-brand/50 font-medium block">Complete with country code (e.g., +2348123456789)</span>
             </div>
 
             <div className="space-y-1.5">
@@ -935,103 +845,16 @@ export default function AdminView({
                   </select>
                 </div>
 
-                <div className="space-y-3 sm:col-span-2">
-                  <div className="flex justify-between items-center">
-                    <label className="font-bold text-slate-brand/85 uppercase">Image Gallery</label>
-                    <span className="text-[9px] text-slate-brand/40 uppercase">Upload or add links</span>
-                  </div>
-
-                  {/* Thumbnail gallery */}
-                  {prodImages.filter(img => img.trim().length > 0).length > 0 && (
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5 p-3.5 bg-gray-50 border border-gray-150 rounded-2xl">
-                      {prodImages.filter(img => img.trim().length > 0).map((url, idx) => (
-                        <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-3xs bg-white">
-                          <img 
-                            src={url} 
-                            alt="" 
-                            className="w-full h-full object-cover" 
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&h=100&fit=crop';
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const list = [...prodImages];
-                              list.splice(idx, 1);
-                              setProdImages(list);
-                            }}
-                            className="absolute -top-1 -right-1 bg-red-650 hover:bg-red-750 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer transform scale-75"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Upload trigger & manual input */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Device Upload Area */}
-                    <div className="sm:col-span-1">
-                      <input
-                        type="file"
-                        id="product-image-upload"
-                        multiple
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProductImageUpload}
-                        disabled={isUploading}
-                      />
-                      <label
-                        htmlFor="product-image-upload"
-                        className={`h-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-purple-brand/60 rounded-2xl p-4.5 text-center cursor-pointer transition-all ${
-                          isUploading ? 'opacity-50 pointer-events-none' : ''
-                        }`}
-                      >
-                        {isUploading ? (
-                          <div className="flex flex-col items-center space-y-2">
-                            <Loader2 className="w-6 h-6 text-purple-brand animate-spin" />
-                            <span className="text-[10px] font-bold text-purple-brand font-mono">{uploadProgress}%</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center space-y-1">
-                            <Upload className="w-5 h-5 text-purple-brand" />
-                            <span className="text-[10px] font-extrabold text-slate-brand">Device Files</span>
-                            <span className="text-[8px] text-slate-brand/45 font-medium leading-none">Tap to upload</span>
-                          </div>
-                        )}
-                      </label>
-                    </div>
-
-                    {/* Manual Paste URLs Area */}
-                    <div className="sm:col-span-2 flex flex-col justify-between space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="Or paste image URL here..."
-                          value={manualImageUrl}
-                          onChange={e => setManualImageUrl(e.target.value)}
-                          className="flex-1 bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-[10px] font-semibold text-slate-brand outline-none focus:border-purple-brand font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (manualImageUrl.trim()) {
-                              setProdImages([...prodImages, manualImageUrl.trim()]);
-                              setManualImageUrl('');
-                            }
-                          }}
-                          className="bg-purple-brand text-white font-bold text-[10px] px-4 py-2.5 rounded-xl uppercase tracking-wider shadow-sm cursor-pointer shrink-0"
-                        >
-                          Add Link
-                        </button>
-                      </div>
-                      <span className="text-[9px] text-slate-brand/40 leading-relaxed block font-medium">
-                        Device files are compressed client-side to ensure fast loading times on mobile devices.
-                      </span>
-                    </div>
-                  </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="font-bold text-slate-brand/85 uppercase flex justify-between">
+                    <span>Image Gallery URLs</span>
+                    <span className="text-[9px] text-purple-brand">Comma-delimited formatting</span>
+                  </label>
+                  <textarea
+                    required rows={2} placeholder="https://unsplash.com/... , https://unsplash.com/..."
+                    value={prodImages} onChange={e => setProdImages(e.target.value)}
+                    className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-[10.5px] text-slate-brand leading-relaxed outline-none focus:border-purple-brand"
+                  />
                 </div>
 
                 <div className="sm:col-span-2 py-1 bg-gray-brand/50 rounded-xl px-4 flex items-center space-x-3 select-none">
@@ -1093,73 +916,13 @@ export default function AdminView({
                 />
               </div>
 
-              <div className="space-y-2.5">
-                <div className="flex justify-between items-center">
-                  <label className="font-bold text-slate-brand/85 uppercase">Cover Image Banner</label>
-                  <span className="text-[9px] text-slate-brand/40 uppercase">Upload or paste link</span>
-                </div>
-
-                {catImage.trim().length > 0 && (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden border border-gray-205 shadow-3xs bg-white group max-h-36 flex items-center justify-center">
-                    <img 
-                      src={catImage} 
-                      alt="" 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=200&fit=crop';
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setCatImage('')}
-                      className="absolute top-2 right-2 bg-red-650 hover:bg-red-750 text-white rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div className="sm:col-span-1">
-                    <input
-                      type="file"
-                      id="category-image-upload"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleCategoryImageUpload}
-                      disabled={isUploading}
-                    />
-                    <label
-                      htmlFor="category-image-upload"
-                      className={`h-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-purple-brand/60 rounded-2xl p-3 text-center cursor-pointer transition-all ${
-                        isUploading ? 'opacity-50 pointer-events-none' : ''
-                      }`}
-                    >
-                      {isUploading ? (
-                        <div className="flex flex-col items-center space-y-1">
-                          <Loader2 className="w-5 h-5 text-purple-brand animate-spin" />
-                          <span className="text-[9px] font-bold text-purple-brand font-mono">{uploadProgress}%</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center space-y-0.5">
-                          <Upload className="w-4 h-4 text-purple-brand" />
-                          <span className="text-[9px] font-extrabold text-slate-brand leading-none">Upload File</span>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <input
-                      type="url"
-                      required
-                      placeholder="Or paste image URL here manually..."
-                      value={catImage}
-                      onChange={e => setCatImage(e.target.value)}
-                      className="w-full h-full bg-gray-brand border border-gray-200 rounded-2xl py-3.5 px-3.5 text-[10px] font-semibold text-slate-brand outline-none focus:border-purple-brand font-mono"
-                    />
-                  </div>
-                </div>
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-brand/85 uppercase">Cover Image Banner URL</label>
+                <input
+                  type="url" required placeholder="https://images.unsplash.com/..."
+                  value={catImage} onChange={e => setCatImage(e.target.value)}
+                  className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-xs text-slate-brand outline-none focus:border-purple-brand transition-all"
+                />
               </div>
 
               <div className="pt-4 border-t border-gray-100 flex justify-end space-x-3.5">

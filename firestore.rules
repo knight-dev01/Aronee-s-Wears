@@ -45,7 +45,7 @@ service cloud.firestore {
       return data.keys().hasAll(['name', 'image', 'productCount', 'createdAt']) && 
              data.keys().size() == 4 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.image is string && data.image.size() <= 1000000 &&
+             data.image is string && data.image.size() <= 2048 &&
              data.productCount is int && data.productCount >= 0 &&
              data.createdAt is timestamp;
     }
