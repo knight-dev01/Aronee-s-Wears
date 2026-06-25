@@ -4,6 +4,7 @@ import { Product, Category } from '../types';
 import { motion } from 'motion/react';
 import { formatRelativeTime } from '../lib/time';
 import { RelativeTime } from './RelativeTime';
+import { logWhatsAppRedirect } from '../utils/whatsapp';
 
 interface HomeViewProps {
   products: Product[];
@@ -102,6 +103,7 @@ export default function HomeView({
     }
 
     const text = encodeURIComponent(rawText);
+    await logWhatsAppRedirect('Home Hero CTA Inquiry', 'Client clicked Hero CTA to request shop styling guide / custom boutique help.');
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 

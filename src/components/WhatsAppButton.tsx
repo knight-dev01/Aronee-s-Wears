@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { logWhatsAppRedirect } from '../utils/whatsapp';
 
 interface WhatsAppButtonProps {
   phoneNumber?: string;
@@ -8,36 +9,19 @@ interface WhatsAppButtonProps {
 }
 
 export default function WhatsAppButton({ phoneNumber, onShowToast }: WhatsAppButtonProps) {
-  const finalNumber = phoneNumber && phoneNumber.trim() !== '' ? phoneNumber : '2348123456789';
-  const cleanNumber = finalNumber.replace(/[^0-9]/g, '');
+  // Enforce the exact WhatsApp phone number: 0818 230 5492 -> Nigerian prefix +234, local 8182305492
+  const targetNumber = '2348182305492';
   const messageText = "Hello Aronee's Wears, I have a question about your products!";
   const message = encodeURIComponent(messageText);
-  const whatsappUrl = `https://wa.me/${cleanNumber}?text=${message}`;
+  const whatsappUrl = `https://wa.me/${targetNumber}?text=${message}`;
 
   const handleClick = async () => {
-    try {
-      await navigator.clipboard.writeText(messageText);
-      if (onShowToast) {
-        onShowToast('Support message copied to clipboard! Opening WhatsApp...');
-      }
-    } catch (clipboardErr) {
-      try {
-        const textArea = document.createElement("textarea");
-        textArea.value = messageText;
-        textArea.style.position = "fixed";
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        if (onShowToast) {
-          onShowToast('Support message copied! Opening WhatsApp...');
-        }
-      } catch (fallbackErr) {
-        console.error('Failed to copy support message to clipboard', fallbackErr);
-      }
+    // 1. Log the redirection event in the database to trigger an admin notification
+    await logWhatsAppRedirect('Floating Support Button', 'Client requested support chat from floating button.');
+    
+    // 2. Alert the client briefly with a toast without writing anything to their clipboard
+    if (onShowToast) {
+      onShowToast("Opening WhatsApp to chat with Aronee's Wears...");
     }
   };
 

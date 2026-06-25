@@ -1,5 +1,6 @@
 import { MapPin, Mail, Clock, MessageSquare, Instagram, Facebook, Send } from 'lucide-react';
 import { motion } from 'motion/react';
+import { logWhatsAppRedirect } from '../utils/whatsapp';
 
 interface ContactViewProps {
   whatsappNumber: string;
@@ -50,6 +51,7 @@ export default function ContactView({
     }
 
     const text = encodeURIComponent(rawText);
+    await logWhatsAppRedirect('Contact Page Inquiry', 'Client clicked contact support button to start an inquiry.');
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 

@@ -20,6 +20,8 @@ import AdminView from './components/AdminView';
 import UserDashboardView from './components/UserDashboardView';
 import WhatsAppButton from './components/WhatsAppButton';
 import Toast from './components/Toast';
+import OtpVerification from './components/OtpVerification';
+import { logWhatsAppRedirect } from './utils/whatsapp';
 
 interface CartItem {
   product: Product;
@@ -35,6 +37,21 @@ export default function App() {
     return (saved as any) || 'home';
   });
   const [selectedProductId, setSelectedProductId] = useState<string | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const prodParam = urlParams.get('product') || urlParams.get('p');
+      if (prodParam) {
+        return prodParam;
+      }
+      
+      const hash = window.location.hash;
+      if (hash) {
+        const match = hash.match(/(?:product|p)[=-]([^&/]+)/) || hash.match(/#\/product\/([^&/]+)/);
+        if (match && match[1]) return match[1];
+      }
+    } catch (e) {
+      console.warn('Failed to parse initial URL parameters:', e);
+    }
     return localStorage.getItem('aronee_selectedProductId');
   });
 
@@ -46,6 +63,8 @@ export default function App() {
 
   // Auth States
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [unverifiedUser, setUnverifiedUser] = useState<FirebaseUser | null>(null);
+  const [showOtpScreen, setShowOtpScreen] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
@@ -87,17 +106,28 @@ export default function App() {
   // 1. Listen for auth changes
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
-        // Record user as a subscriber for updates
+        // Enforce secure first-time user verification check
         try {
-          await setDoc(doc(db, 'subscribers', currentUser.uid), {
-            email: currentUser.email,
-            displayName: currentUser.displayName,
-            joinedAt: serverTimestamp()
-          }, { merge: true });
+          const subscriberDocRef = doc(db, 'subscribers', currentUser.uid);
+          const subscriberDocSnap = await getDoc(subscriberDocRef);
+          
+          if (subscriberDocSnap.exists() && subscriberDocSnap.data()?.otpVerified === true) {
+            // Already verified
+            setUser(currentUser);
+            setUnverifiedUser(null);
+            setShowOtpScreen(false);
+          } else {
+            // Unverified or first-time user
+            setUnverifiedUser(currentUser);
+            setShowOtpScreen(true);
+            setUser(null);
+          }
         } catch (err) {
-          console.warn('Could not update subscriber record:', err);
+          console.warn('First-time subscriber check bypassed (falling back to verification prompt):', err);
+          setUnverifiedUser(currentUser);
+          setShowOtpScreen(true);
+          setUser(null);
         }
 
         // Any Google Login where the email is 'greatifet12@gmail.com' is treated as Admin
@@ -116,6 +146,9 @@ export default function App() {
           setIsAdmin(isHardcodedAdmin);
         }
       } else {
+        setUser(null);
+        setUnverifiedUser(null);
+        setShowOtpScreen(false);
         setIsAdmin(false);
       }
       setIsInitializing(false);
@@ -277,6 +310,15 @@ export default function App() {
     }
   };
 
+  const handleOtpVerified = () => {
+    if (unverifiedUser) {
+      setUser(unverifiedUser);
+      setUnverifiedUser(null);
+      setShowOtpScreen(false);
+      showToast("Verification successful! Welcome to Aronee's Wears.");
+    }
+  };
+
   // Add Item to WhatsApp order draft
   const handleAddToCart = (product: Product, size: string = 'Standard') => {
     setCartItems((prevItems) => {
@@ -327,7 +369,8 @@ export default function App() {
       const rowSum = item.product.price * item.quantity;
       totalVal += rowSum;
       const sizeStr = item.product.category === 'bags' ? '' : ` (Size: ${item.size})`;
-      orderDetailLines += `- ${item.product.name}${sizeStr}\n  Qty: ${item.quantity} x ₦${item.product.price.toLocaleString()} = ₦${rowSum.toLocaleString()}\n\n`;
+      const itemUrl = `${window.location.origin}${window.location.pathname}?product=${item.product.id}`;
+      orderDetailLines += `- ${item.product.name}${sizeStr}\n  Qty: ${item.quantity} x ₦${item.product.price.toLocaleString()} = ₦${rowSum.toLocaleString()}\n  Link: ${itemUrl}\n\n`;
     });
 
     const bodyText = `Hello Aronee's Wears,
@@ -361,6 +404,7 @@ Please provide payment instructions and coordinate home delivery options.`;
 
     const encoded = encodeURIComponent(bodyText);
     const whatsappClean = settings?.whatsappNumber?.replace(/\+/g, '') || '2348123456789';
+    await logWhatsAppRedirect('Cart Checkout Order Submission', `Cart Total: ₦${cartItemsTotalPrice.toLocaleString()} for ${cartItemTotalCount} items.`);
     window.open(`https://wa.me/${whatsappClean}?text=${encoded}`, '_blank');
     
     // Clear cart upon launch to reset
@@ -377,12 +421,26 @@ Please provide payment instructions and coordinate home delivery options.`;
   const handleViewChange = (view: 'home' | 'shop' | 'about' | 'contact' | 'admin' | 'account') => {
     setCurrentView(view);
     setSelectedProductId(null);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('product');
+      url.searchParams.delete('p');
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {
+      console.warn('Failed to update URL in handleViewChange:', e);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectProduct = (productId: string) => {
     setSelectedProductId(productId);
-    setSelectedProductId(productId);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('product', productId);
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {
+      console.warn('Failed to update URL in handleSelectProduct:', e);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -404,8 +462,8 @@ Please provide payment instructions and coordinate home delivery options.`;
           
           <div className="relative z-10 w-full max-w-md bg-white rounded-[40px] p-8 sm:p-12 shadow-2xl text-center space-y-8 animate-scale-up">
             <div className="space-y-4">
-              <div className="w-20 h-20 bg-purple-brand text-white rounded-3xl mx-auto flex items-center justify-center shadow-lg transform -rotate-6">
-                <ShoppingBag className="w-10 h-10" />
+              <div className="w-24 h-24 bg-white rounded-full mx-auto flex items-center justify-center shadow-lg border border-gray-100 overflow-hidden">
+                <img src="/logo.png" alt="Aronee's Wears Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
               </div>
               <div className="space-y-1">
                 <h1 className="text-3xl font-extrabold font-display text-slate-brand tracking-tight">
@@ -468,7 +526,17 @@ Please provide payment instructions and coordinate home delivery options.`;
                 allProducts={products}
                 categories={categories}
                 settings={settings}
-                onBack={() => setSelectedProductId(null)}
+                onBack={() => {
+                  setSelectedProductId(null);
+                  try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('product');
+                    url.searchParams.delete('p');
+                    window.history.replaceState({}, '', url.toString());
+                  } catch (e) {
+                    console.warn('Failed to update URL in onBack:', e);
+                  }
+                }}
                 onSelectProduct={handleSelectProduct}
                 whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
                 onAddToCart={handleAddToCart}
@@ -743,6 +811,15 @@ Please provide payment instructions and coordinate home delivery options.`;
 
       {/* FLOATING SUPPORT BUTTON */}
       <WhatsAppButton phoneNumber={settings?.whatsappNumber} onShowToast={showToast} />
+
+      {/* OTP VERIFICATION SYSTEM */}
+      {showOtpScreen && unverifiedUser && (
+        <OtpVerification 
+          user={unverifiedUser} 
+          onVerified={handleOtpVerified} 
+          onCancel={handleLogout} 
+        />
+      )}
 
       {/* SUCCESS TOAST NOTIFICATION */}
       <Toast 

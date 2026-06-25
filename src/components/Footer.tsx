@@ -23,8 +23,8 @@ export default function Footer({
           {/* Brand Column */}
           <div className="md:col-span-1 space-y-4">
             <div className="flex items-center space-x-2">
-              <div className="w-9 h-9 rounded-full bg-purple-brand flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden border border-gray-700">
+                <img src="/logo.png" alt="Aronee's Wears Logo" className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />
               </div>
               <div className="flex flex-col">
                 <span className="font-display font-bold text-lg tracking-wider text-white leading-none">

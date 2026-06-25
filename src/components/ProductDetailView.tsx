@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight, Truck, Info, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight, Truck, Info, Clock, Loader2, AlertCircle, Link as LinkIcon, Check } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { motion } from 'motion/react';
+import { logWhatsAppRedirect } from '../utils/whatsapp';
 
 interface ProductDetailViewProps {
   product: Product;
@@ -35,6 +36,71 @@ export default function ProductDetailView({
   const [isReserving, setIsReserving] = useState(false);
   const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
   const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Update page tab title and Open Graph metadata dynamically for social media previews
+  useEffect(() => {
+    if (product) {
+      document.title = `${product.name} | Aronee's Wears`;
+      
+      // Update social media metadata for direct links
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) ogTitle.setAttribute('content', `${product.name} | Aronee's Wears`);
+      
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      if (ogDesc) ogDesc.setAttribute('content', product.description || "Discover premium wears and fashion accessories at Aronee's Wears.");
+      
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) ogImage.setAttribute('content', product.images[0] || '/logo.png');
+
+      const twitterTitle = document.querySelector('meta[property="twitter:title"]');
+      if (twitterTitle) twitterTitle.setAttribute('content', `${product.name} | Aronee's Wears`);
+
+      const twitterDesc = document.querySelector('meta[property="twitter:description"]');
+      if (twitterDesc) twitterDesc.setAttribute('content', product.description || "Discover premium wears and fashion accessories at Aronee's Wears.");
+
+      const twitterImage = document.querySelector('meta[property="twitter:image"]');
+      if (twitterImage) twitterImage.setAttribute('content', product.images[0] || '/logo.png');
+    }
+    return () => {
+      document.title = "Aronee's Wears | Style that defines you";
+    };
+  }, [product]);
+
+  const handleCopyLink = async () => {
+    // Generate direct URL using current window location
+    const shareUrl = `${window.location.origin}${window.location.pathname}?product=${product.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      if (onShowToast) {
+        onShowToast('Direct product link copied to clipboard!');
+      }
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch (err) {
+      try {
+        // Fallback for iframe environments / older devices
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setIsCopied(true);
+        if (onShowToast) {
+          onShowToast('Direct product link copied to clipboard!');
+        }
+        setTimeout(() => setIsCopied(false), 3000);
+      } catch (fallbackErr) {
+        console.error('Failed to copy link:', fallbackErr);
+      }
+    }
+  };
 
   // Generate size choices based on category type
   const isWomens = ['heels', 'womens-wears'].includes(product.category);
@@ -107,12 +173,14 @@ export default function ProductDetailView({
       // 3. Copy message to clipboard and Open WhatsApp
       const formattingPrice = product.price.toLocaleString();
       const sizeLine = isBags ? '' : `\nSize: ${selectedSize}`;
+      const productLink = `${window.location.origin}${window.location.pathname}?product=${product.id}`;
       const text = `Hello Aronee's Wears,
 
 I would like to order:
 
 Product Name: ${product.name}${sizeLine}
 Price: ₦${formattingPrice}
+Product Link: ${productLink}
 
 Please provide payment details to confirm my order.`;
 
@@ -142,6 +210,7 @@ Please provide payment details to confirm my order.`;
       }
 
       const encodedText = encodeURIComponent(text);
+      await logWhatsAppRedirect('Product Detail Order (WhatsApp Direct)', `Product: ${product.name}, Price: ₦${formattingPrice}, Size: ${selectedSize || 'Standard'}`);
       window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${encodedText}`, '_blank');
       
       // 4. Close Delivery Info
@@ -174,16 +243,30 @@ Please provide payment details to confirm my order.`;
   return (
     <div id="product-detail-view" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       
-      {/* Back button link */}
-      <motion.button
-        whileHover={{ x: -4 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onBack}
-        className="mb-8 font-sans font-bold text-xs sm:text-sm text-slate-brand hover:text-purple-brand flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer py-1"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Back to Collections</span>
-      </motion.button>
+      {/* Top navigation row with back button and share action */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        {/* Back button link */}
+        <motion.button
+          whileHover={{ x: -4 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onBack}
+          className="font-sans font-bold text-xs sm:text-sm text-slate-brand hover:text-purple-brand flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer py-1 self-start"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Collections</span>
+        </motion.button>
+
+        {/* Copy Share Link */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleCopyLink}
+          className="font-sans font-bold text-xs text-purple-brand hover:bg-purple-brand/5 border border-purple-brand/30 hover:border-purple-brand px-5 py-2.5 rounded-full flex items-center justify-center space-x-2 uppercase tracking-widest cursor-pointer shadow-xs transition-all self-start sm:self-auto"
+        >
+          {isCopied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+          <span>{isCopied ? 'Link Copied!' : 'Copy Share Link'}</span>
+        </motion.button>
+      </div>
 
       {/* Main product presentation block */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-start">
@@ -362,6 +445,23 @@ Please provide payment details to confirm my order.`;
                 </p>
               </div>
             )}
+
+            {/* Direct Social Share copy button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleCopyLink}
+              className="w-full bg-slate-brand/5 hover:bg-slate-brand/10 text-slate-brand font-bold text-xs tracking-wider uppercase py-4 px-6 rounded-2xl cursor-pointer flex items-center justify-center space-x-2.5 transition-colors border border-slate-brand/5 hover:border-slate-brand/10"
+            >
+              {isCopied ? (
+                <Check className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <LinkIcon className="w-4 h-4 text-purple-brand" />
+              )}
+              <span className={isCopied ? 'text-emerald-700 font-extrabold' : ''}>
+                {isCopied ? 'Direct Link Copied!' : 'Copy Link for Social Media'}
+              </span>
+            </motion.button>
           </div>
 
         </div>

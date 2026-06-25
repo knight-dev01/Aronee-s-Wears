@@ -105,6 +105,28 @@ service cloud.firestore {
              (!data.keys().contains('displayName') || data.displayName == null || (data.displayName is string && data.displayName.size() <= 150)) &&
              data.joinedAt is timestamp;
     }
+
+    // Welcome Email Record Validation
+    function isValidWelcomeEmail(data) {
+      return data.keys().hasAll(['userId', 'email', 'status', 'template', 'couponCode', 'createdAt']) &&
+             data.userId is string &&
+             data.email is string && data.email.size() <= 150 &&
+             (!data.keys().contains('displayName') || data.displayName == null || (data.displayName is string && data.displayName.size() <= 150)) &&
+             data.status is string && (data.status == 'pending' || data.status == 'sent' || data.status == 'failed') &&
+             data.template is string &&
+             data.couponCode is string &&
+             data.createdAt is timestamp;
+    }
+
+    // Admin Notification Validation
+    function isValidAdminNotification(data) {
+      return data.keys().hasAll(['to', 'subject', 'body', 'status', 'createdAt']) &&
+             data.to is string &&
+             data.subject is string &&
+             data.body is string &&
+             data.status is string && (data.status == 'pending' || data.status == 'sent' || data.status == 'failed') &&
+             data.createdAt is timestamp;
+    }
     
     // --- Collection Routes ---
     
@@ -157,6 +179,18 @@ service cloud.firestore {
       allow create: if isValidReservation(incoming()) && incoming().createdAt == request.time;
       allow update: if isAdmin() && isValidReservation(incoming());
       allow delete: if isAdmin();
+    }
+
+    // Welcome Emails Collection
+    match /welcomeEmails/{welcomeEmailId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidWelcomeEmail(incoming()) && incoming().createdAt == request.time;
+    }
+
+    // Admin Notifications Collection
+    match /adminNotifications/{notificationId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isValidAdminNotification(incoming()) && incoming().createdAt == request.time;
     }
   }
 }
