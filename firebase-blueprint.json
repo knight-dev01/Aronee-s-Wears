@@ -119,12 +119,30 @@
         }
       },
       "required": ["email", "addedAt"]
+    },
+    "subscriber": {
+      "title": "Subscriber",
+      "description": "Users who have signed in and opted for email updates.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "joinedAt"]
     }
   },
   "firestore": {
     "/products/{productId}": {
       "schema": "product",
-      "description": "Footwear products and accessories database."
+      "description": "Wears products and accessories database."
     },
     "/categories/{categoryId}": {
       "schema": "category",
@@ -137,6 +155,10 @@
     "/admins/{adminId}": {
       "schema": "admin",
       "description": "Allowed administrator users for Dashboard access."
+    },
+    "/subscribers/{subscriberId}": {
+      "schema": "subscriber",
+      "description": "User email list for storefront updates and discounts."
     }
   }
 }

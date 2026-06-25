@@ -46,12 +46,12 @@ export const defaultCategories: SeedCategory[] = [
   },
   {
     id: 'mens-footwear',
-    name: "Men's Footwear",
+    name: "Men's Wears",
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80'
   },
   {
     id: 'womens-footwear',
-    name: "Women's Footwear",
+    name: "Women's Wears",
     image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80'
   }
 ];

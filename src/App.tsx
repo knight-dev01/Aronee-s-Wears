@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, getDocs, doc, getDoc, limit, onSnapshot, orderBy, where 
+  collection, query, getDocs, doc, getDoc, setDoc, serverTimestamp, limit, onSnapshot, orderBy, where 
 } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { ShoppingBag, X, MessageSquare, AlertCircle, RefreshCw, Trash2, ArrowUpRight } from 'lucide-react';
@@ -17,6 +17,9 @@ import AboutView from './components/AboutView';
 import ContactView from './components/ContactView';
 import ProductDetailView from './components/ProductDetailView';
 import AdminView from './components/AdminView';
+import UserDashboardView from './components/UserDashboardView';
+import WhatsAppButton from './components/WhatsAppButton';
+import Toast from './components/Toast';
 
 interface CartItem {
   product: Product;
@@ -27,20 +30,18 @@ interface CartItem {
 export default function App() {
   
   // Views navigation and Selection
-  const [currentView, setCurrentView] = useState<'home' | 'shop' | 'about' | 'contact' | 'admin'>('home');
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'home' | 'shop' | 'about' | 'contact' | 'admin' | 'account'>(() => {
+    const saved = localStorage.getItem('aronee_currentView');
+    return (saved as any) || 'home';
+  });
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(() => {
+    return localStorage.getItem('aronee_selectedProductId');
+  });
 
   // Firestore DB States
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [settings, setSettings] = useState<StoreSettings | null>({
-    whatsappNumber: '+2348123456789',
-    contactAddress: 'Shop 14, Ikotun Fashion Plaza, Governor Road, Ikotun, Lagos, Nigeria',
-    contactEmail: 'aroneefashion@gmail.com',
-    instagramUrl: 'https://instagram.com/aroneesfootwear',
-    facebookUrl: 'https://facebook.com/aroneesfootwear',
-    businessHours: 'Monday - Saturday: 8:00 AM - 7:00 PM'
-  });
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
 
   // Auth States
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -48,14 +49,55 @@ export default function App() {
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
   // Shopper's Order Draft (Cart Drawer) States
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem('aronee_cart');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{ message: string; isVisible: boolean }>({
+    message: '',
+    isVisible: false
+  });
+
+  const showToast = (message: string) => {
+    setToast({ message, isVisible: true });
+  };
+
+  // Persistence Sync
+  useEffect(() => {
+    localStorage.setItem('aronee_currentView', currentView);
+  }, [currentView]);
+
+  useEffect(() => {
+    if (selectedProductId) {
+      localStorage.setItem('aronee_selectedProductId', selectedProductId);
+    } else {
+      localStorage.removeItem('aronee_selectedProductId');
+    }
+  }, [selectedProductId]);
+
+  useEffect(() => {
+    localStorage.setItem('aronee_cart', JSON.stringify(cartItems));
+  }, [cartItems]);
 
   // 1. Listen for auth changes
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        // Record user as a subscriber for updates
+        try {
+          await setDoc(doc(db, 'subscribers', currentUser.uid), {
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            joinedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (err) {
+          console.warn('Could not update subscriber record:', err);
+        }
+
         // Any Google Login where the email is 'greatifet12@gmail.com' is treated as Admin
         // This coordinates nicely with both standard rules check and physical owner accesses
         const userEmail = currentUser.email?.toLowerCase();
@@ -112,11 +154,13 @@ export default function App() {
             name: d.name || '',
             description: d.description || '',
             price: Number(d.price || 0),
+            discountPrice: d.discountPrice ? Number(d.discountPrice) : undefined,
             images: d.images || [],
             category: d.category || '',
             stock: Number(d.stock || 0),
             featured: Boolean(d.featured || false),
             status: d.status || 'active',
+            sizes: d.sizes || [],
             createdAt: d.createdAt,
             updatedAt: d.updatedAt
           });
@@ -215,7 +259,7 @@ export default function App() {
   };
 
   // Add Item to WhatsApp order draft
-  const handleAddToCart = (product: Product, size: string) => {
+  const handleAddToCart = (product: Product, size: string = 'Standard') => {
     setCartItems((prevItems) => {
       const existingIdx = prevItems.findIndex(
         (item) => item.product.id === product.id && item.size === size
@@ -227,7 +271,8 @@ export default function App() {
       }
       return [...prevItems, { product, size, quantity: 1 }];
     });
-    setIsCartOpen(true);
+    
+    showToast(`${product.name} added to cart!`);
   };
 
   const handleUpdateCartQty = (idx: number, amount: number) => {
@@ -288,7 +333,7 @@ Please provide payment instructions and coordinate home delivery options.`;
   const cartItemsTotalPrice = cartItems.reduce((acc, curr) => acc + (curr.product.price * curr.quantity), 0);
 
   // Transition helper (clearing product selections when views change)
-  const handleViewChange = (view: 'home' | 'shop' | 'about' | 'contact' | 'admin') => {
+  const handleViewChange = (view: 'home' | 'shop' | 'about' | 'contact' | 'admin' | 'account') => {
     setCurrentView(view);
     setSelectedProductId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -308,94 +353,156 @@ Please provide payment instructions and coordinate home delivery options.`;
   return (
     <div id="application-root" className="min-h-screen bg-white flex flex-col justify-between font-sans leading-normal tracking-normal text-slate-brand">
       
-      {/* Dynamic Header Component */}
-      <Header
-        currentView={selectedProductId ? 'shop' : currentView}
-        onViewChange={handleViewChange}
-        isAdmin={isAdmin}
-        user={user}
-        onLoginClick={() => handleViewChange('admin')}
-        cartCount={cartItemTotalCount}
-        onCartToggle={() => setIsCartOpen(!isCartOpen)}
-      />
-
-      {/* Main Content Area containing state wrappers */}
-      <main className="flex-grow">
-        {isInitializing ? (
-          <div className="py-24 text-center space-y-4">
-            <RefreshCw className="w-8 h-8 text-purple-brand animate-spin mx-auto" />
-            <p className="text-xs text-slate-brand/50 font-bold uppercase tracking-widest">Hydrating Storefront Configuration...</p>
+      {!user && !isInitializing ? (
+        /* Compulsory Auth Entrance */
+        <div className="fixed inset-0 z-[1000] bg-slate-brand flex items-center justify-center p-6">
+          <div className="absolute inset-0 opacity-20 pointer-events-none overflow-hidden">
+             <div className="absolute top-0 -left-1/4 w-full h-full bg-purple-brand/30 blur-[120px] rounded-full" />
+             <div className="absolute bottom-0 -right-1/4 w-full h-full bg-purple-brand/20 blur-[120px] rounded-full" />
           </div>
-        ) : activeDetailProduct ? (
-          /* Render Product Specification Details screen */
-          <ProductDetailView
-            product={activeDetailProduct}
-            allProducts={products}
-            categories={categories}
-            onBack={() => setSelectedProductId(null)}
-            onSelectProduct={handleSelectProduct}
-            whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
-            onAddToCart={handleAddToCart}
+          
+          <div className="relative z-10 w-full max-w-md bg-white rounded-[40px] p-8 sm:p-12 shadow-2xl text-center space-y-8 animate-scale-up">
+            <div className="space-y-4">
+              <div className="w-20 h-20 bg-purple-brand text-white rounded-3xl mx-auto flex items-center justify-center shadow-lg transform -rotate-6">
+                <ShoppingBag className="w-10 h-10" />
+              </div>
+              <div className="space-y-1">
+                <h1 className="text-3xl font-extrabold font-display text-slate-brand tracking-tight">
+                  Aronee's Wears
+                </h1>
+                <p className="text-purple-brand font-bold text-xs uppercase tracking-[0.3em]">
+                  Style that defines you
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-slate-brand/60 text-sm font-medium leading-relaxed">
+                Join our exclusive fashion community for premium footwear, personalized updates, and secret discounts!
+              </p>
+              <div className="flex items-center gap-2 justify-center text-[10px] text-purple-brand font-bold uppercase tracking-wider bg-purple-brand/5 py-2 rounded-xl">
+                <AlertCircle className="w-3 h-3" />
+                Login is required to browse
+              </div>
+            </div>
+
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full bg-slate-brand text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-opacity-95 transition-all shadow-xl group"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 bg-white p-1 rounded-sm" />
+              <span>Enter Storefront</span>
+              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </button>
+
+            <p className="text-[10px] text-slate-brand/40 font-medium leading-relaxed">
+              By entering, you agree to receive email updates and promotional discounts from Aronee's Wears. You can unsubscribe at any time.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Dynamic Header Component */}
+          <Header
+            currentView={selectedProductId ? 'shop' : currentView}
+            onViewChange={handleViewChange}
+            isAdmin={isAdmin}
+            user={user}
+            onLoginClick={() => handleViewChange('admin')}
+            cartCount={cartItemTotalCount}
+            onCartToggle={() => setIsCartOpen(!isCartOpen)}
           />
-        ) : (
-          /* Render tabbed views */
-          <>
-            {currentView === 'home' && (
-              <HomeView
-                products={products}
+
+          {/* Main Content Area containing state wrappers */}
+          <main className="flex-grow">
+            {isInitializing ? (
+              <div className="py-24 text-center space-y-4">
+                <RefreshCw className="w-8 h-8 text-purple-brand animate-spin mx-auto" />
+                <p className="text-xs text-slate-brand/50 font-bold uppercase tracking-widest">Hydrating Storefront Configuration...</p>
+              </div>
+            ) : activeDetailProduct ? (
+              /* Render Product Specification Details screen */
+              <ProductDetailView
+                product={activeDetailProduct}
+                allProducts={products}
                 categories={categories}
-                onViewChange={handleViewChange}
+                onBack={() => setSelectedProductId(null)}
                 onSelectProduct={handleSelectProduct}
                 whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
+                onAddToCart={handleAddToCart}
               />
+            ) : (
+              /* Render tabbed views */
+              <>
+                {currentView === 'home' && (
+                  <HomeView
+                    products={products}
+                    categories={categories}
+                    onViewChange={handleViewChange}
+                    onSelectProduct={handleSelectProduct}
+                    onAddToCart={handleAddToCart}
+                    whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
+                  />
+                )}
+
+                {currentView === 'shop' && (
+                  <ShopView
+                    products={products}
+                    categories={categories}
+                    onSelectProduct={handleSelectProduct}
+                    onAddToCart={handleAddToCart}
+                    onViewChange={handleViewChange}
+                  />
+                )}
+
+                {currentView === 'about' && <AboutView />}
+
+                {currentView === 'contact' && settings && (
+                  <ContactView
+                    whatsappNumber={settings.whatsappNumber}
+                    contactAddress={settings.contactAddress}
+                    contactEmail={settings.contactEmail}
+                    instagramUrl={settings.instagramUrl}
+                    facebookUrl={settings.facebookUrl}
+                    businessHours={settings.businessHours}
+                  />
+                )}
+
+                {currentView === 'admin' && (
+                  <AdminView
+                    user={user}
+                    isAdmin={isAdmin}
+                    onLogin={handleGoogleLogin}
+                    onLogout={handleLogout}
+                    products={products}
+                    categories={categories}
+                    settings={settings}
+                    onRefreshData={forceRefreshStats}
+                  />
+                )}
+
+                {currentView === 'account' && (
+                  <UserDashboardView
+                    user={user}
+                    onLogout={handleLogout}
+                    onViewChange={handleViewChange}
+                  />
+                )}
+              </>
             )}
+          </main>
 
-            {currentView === 'shop' && (
-              <ShopView
-                products={products}
-                categories={categories}
-                onSelectProduct={handleSelectProduct}
-              />
-            )}
-
-            {currentView === 'about' && <AboutView />}
-
-            {currentView === 'contact' && settings && (
-              <ContactView
-                whatsappNumber={settings.whatsappNumber}
-                contactAddress={settings.contactAddress}
-                contactEmail={settings.contactEmail}
-                instagramUrl={settings.instagramUrl}
-                facebookUrl={settings.facebookUrl}
-                businessHours={settings.businessHours}
-              />
-            )}
-
-            {currentView === 'admin' && (
-              <AdminView
-                user={user}
-                isAdmin={isAdmin}
-                onLogin={handleGoogleLogin}
-                onLogout={handleLogout}
-                products={products}
-                categories={categories}
-                settings={settings}
-                onRefreshData={forceRefreshStats}
-              />
-            )}
-          </>
-        )}
-      </main>
-
-      {/* FOOTER BLOCK */}
-      {settings && (
-        <Footer
-          onViewChange={handleViewChange}
-          whatsappNumber={settings.whatsappNumber}
-          contactEmail={settings.contactEmail}
-          instagramUrl={settings.instagramUrl}
-          facebookUrl={settings.facebookUrl}
-        />
+          {/* FOOTER BLOCK */}
+          {settings && (
+            <Footer
+              onViewChange={handleViewChange}
+              whatsappNumber={settings.whatsappNumber}
+              contactEmail={settings.contactEmail}
+              instagramUrl={settings.instagramUrl}
+              facebookUrl={settings.facebookUrl}
+            />
+          )}
+        </>
       )}
 
       {/* 8. SHOPPING CART / WhatsApp Multiple-Item Draft DRAWER OVERLAY */}
@@ -528,6 +635,16 @@ Please provide payment instructions and coordinate home delivery options.`;
           
         </div>
       )}
+
+      {/* FLOATING SUPPORT BUTTON */}
+      <WhatsAppButton phoneNumber={settings?.whatsappNumber} />
+
+      {/* SUCCESS TOAST NOTIFICATION */}
+      <Toast 
+        message={toast.message} 
+        isVisible={toast.isVisible} 
+        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
+      />
 
     </div>
   );

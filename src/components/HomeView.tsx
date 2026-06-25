@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Star, Truck, Award, Shield, DollarSign, ArrowUpRight, MessageCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Star, Truck, Award, Shield, DollarSign, ArrowUpRight, MessageCircle, ShoppingBag } from 'lucide-react';
 import { Product, Category } from '../types';
+import { motion } from 'motion/react';
 
 interface HomeViewProps {
   products: Product[];
   categories: Category[];
   onViewChange: (view: 'home' | 'shop' | 'about' | 'contact' | 'admin') => void;
   onSelectProduct: (productId: string) => void;
+  onAddToCart: (product: Product, size?: string) => void;
   whatsappNumber: string;
 }
 
@@ -15,16 +17,17 @@ export default function HomeView({
   categories,
   onViewChange,
   onSelectProduct,
+  onAddToCart,
   whatsappNumber
 }: HomeViewProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const heroSlides = [
     {
-      title: 'Step Into Style',
-      subtitle: 'Discover quality footwear and fashion accessories designed for every occasion in Nigeria.',
+      title: 'Style that defines you',
+      subtitle: 'Step into a world of premium wears and fashion accessories crafted for your unique expression.',
       image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=85',
-      badge: 'STREET STYLE SNEAKERS'
+      badge: 'PREMIUM WEARS'
     },
     {
       title: 'Confidence at Every Step',
@@ -166,7 +169,7 @@ export default function HomeView({
             Featured Categories
           </h2>
           <p className="text-sm text-slate-brand/60 font-medium">
-            Explore curated segments of luxury Nigerian footwear and accessories.
+            Explore curated segments of luxury Nigerian wears and accessories.
           </p>
           <div className="w-16 h-1 bg-purple-brand mx-auto rounded-full" />
         </div>
@@ -190,9 +193,12 @@ export default function HomeView({
                 <h3 className="text-white font-bold text-sm sm:text-base tracking-wide uppercase">
                   {cat.name}
                 </h3>
-                <span className="inline-block bg-purple-brand/20 text-purple-brand border border-purple-brand/35 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
-                  {cat.productCount} Products
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block bg-white text-slate-brand text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                    {cat.productCount} Items
+                  </span>
+                  <span className="text-[9px] text-white/70 font-bold uppercase tracking-tighter">Available</span>
+                </div>
               </div>
             </div>
           ))}
@@ -221,12 +227,18 @@ export default function HomeView({
 
         {isProductsEmpty ? (
           <div className="py-12 text-center bg-gray-brand rounded-2xl border border-gray-100">
-            <p className="text-sm font-medium text-slate-brand/50">Loading initial footwear arrivals...</p>
+            <p className="text-sm font-medium text-slate-brand/50">Loading initial wears arrivals...</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             {newArrivals.map((product) => {
-              const catName = categories.find(c => c.id === product.category)?.name || 'Footwear';
+              const catName = categories.find(c => c.id === product.category)?.name || 'Wears';
+              
+              // Calculate if "Just in" (last 7 days)
+              const now = Date.now();
+              const createdDate = product.createdAt?.toMillis() || 0;
+              const isRecent = now - createdDate < 7 * 24 * 60 * 60 * 1000;
+              
               return (
                 <div
                   key={product.id}
@@ -241,31 +253,69 @@ export default function HomeView({
                       className="w-full h-full object-cover object-center group-hover:scale-104 transition-transform duration-500"
                       loading="lazy"
                     />
-                    {product.stock === 0 && (
-                      <span className="absolute top-2 left-2 bg-red-600 text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full">
-                        OUT OF STOCK
+                    {isRecent && (
+                      <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">
+                        JUST IN
                       </span>
                     )}
-                    {product.stock > 0 && product.stock <= 3 && (
-                      <span className="absolute top-2 left-2 bg-amber-500 text-slate-brand text-[9px] font-bold font-mono py-1 px-2.5 rounded-full">
-                        LOW STOCK
+                    {product.discountPrice && (
+                      <span className="absolute bottom-2 left-2 bg-purple-brand text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">
+                        OFFER
                       </span>
+                    )}
+                    {product.stock === 0 && (
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center backdrop-blur-[2px]">
+                        <span className="bg-red-600 text-white text-[9px] font-bold font-mono py-1.5 px-3 rounded-full">
+                          SOLD OUT
+                        </span>
+                      </div>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[10px] tracking-widest text-purple-brand/80 font-bold uppercase">
-                      {catName}
-                    </p>
+                    <div className="flex justify-between items-center">
+                      <p className="text-[9px] tracking-widest text-purple-brand/80 font-bold uppercase">
+                        {catName}
+                      </p>
+                      {product.sizes && product.sizes.length > 0 && (
+                        <p className="text-[8px] text-slate-brand/40 font-bold uppercase">
+                          {product.sizes.length} Sizes
+                        </p>
+                      )}
+                    </div>
                     <h3 className="font-semibold text-xs sm:text-sm text-slate-brand line-clamp-1 group-hover:text-purple-brand transition-colors">
                       {product.name}
                     </h3>
                     <div className="flex justify-between items-center pt-1.5">
-                      <span className="text-xs sm:text-sm font-extrabold text-slate-brand font-mono">
-                        &#8358; {product.price.toLocaleString()}
-                      </span>
-                      <button className="text-[10px] font-bold border border-purple-brand/20 text-purple-brand py-1 px-2.5 rounded-full hover:bg-purple-brand hover:text-white transition-colors cursor-pointer">
-                        View Product
-                      </button>
+                      <div className="flex flex-col">
+                        {product.discountPrice ? (
+                          <>
+                            <span className="text-xs sm:text-sm font-extrabold text-emerald-600 font-mono">
+                              &#8358; {product.discountPrice.toLocaleString()}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-brand/30 line-through font-mono">
+                              &#8358; {product.price.toLocaleString()}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs sm:text-sm font-extrabold text-slate-brand font-mono">
+                            &#8358; {product.price.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <motion.button 
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(product);
+                          }}
+                          className="bg-purple-brand text-white p-1.5 rounded-full hover:bg-opacity-90 transition-all cursor-pointer shadow-sm"
+                          title="Add to Cart"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                        </motion.button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -283,7 +333,7 @@ export default function HomeView({
               Why Lagos Shops Aronee's Wears
             </h2>
             <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
-              We stand out in premium footwear standards and dedicated customer delivery.
+              We stand out in premium wears standards and dedicated customer delivery.
             </p>
           </div>
 
@@ -346,7 +396,7 @@ export default function HomeView({
             Featured Collections
           </h2>
           <p className="text-sm text-slate-brand/60 font-medium">
-            Handpicked footwear styles recommended for highest standards of presentation.
+            Handpicked wears styles recommended for highest standards of presentation.
           </p>
           <div className="w-16 h-1 bg-purple-brand mx-auto rounded-full" />
         </div>
@@ -358,7 +408,7 @@ export default function HomeView({
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             {featuredProducts.map((product) => {
-              const catName = categories.find(c => c.id === product.category)?.name || 'Footwear';
+              const catName = categories.find(c => c.id === product.category)?.name || 'Wears';
               return (
                 <div
                   key={product.id}
@@ -405,7 +455,7 @@ export default function HomeView({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-2 max-w-xl mx-auto mb-10">
             <span className="text-purple-brand font-mono font-bold text-[10px] uppercase tracking-widest block">
-              @aroneesfootwear
+              @aroneeswears
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-brand">
               Style Showcase

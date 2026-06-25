@@ -154,7 +154,7 @@ Please provide payment and delivery details.`;
           {/* Headline Metadata */}
           <div className="space-y-2">
             <span className="text-xs font-mono font-bold text-purple-brand tracking-[0.2em] block uppercase">
-              {categoryObject?.name || 'Footwear'} Collection
+              {categoryObject?.name || 'Wears'} Collection
             </span>
             <h1 className="text-3xl sm:text-4xl font-extrabold font-display leading-[1.1] tracking-tight text-slate-brand">
               {product.name}
@@ -236,7 +236,7 @@ Please provide payment and delivery details.`;
                   className="bg-gray-brand hover:bg-purple-brand/5 border-2 border-gray-200 hover:border-purple-brand text-slate-brand font-bold text-sm tracking-widest uppercase py-4 px-8 rounded-full transition-all cursor-pointer flex items-center justify-center space-x-2.5"
                 >
                   <ShoppingBag className="w-5 h-5" />
-                  <span>Add to Order Draft</span>
+                  <span>Add to Cart</span>
                 </button>
 
               </div>
@@ -262,7 +262,7 @@ Please provide payment and delivery details.`;
                 Related Styling Recommendations
               </h2>
               <p className="text-xs text-slate-brand/60 font-medium">
-                Other beautiful {categoryObject?.name || 'Footwear'} options compatible with your look.
+                Other beautiful {categoryObject?.name || 'Wears'} options compatible with your look.
               </p>
             </div>
             <button

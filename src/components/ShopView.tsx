@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { Search, SlidersHorizontal, ArrowUpDown, RefreshCw, Star } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, RefreshCw, Star, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { Product, Category } from '../types';
+import { motion } from 'motion/react';
 
 interface ShopViewProps {
   products: Product[];
   categories: Category[];
   onSelectProduct: (productId: string) => void;
+  onAddToCart: (product: Product, size?: string) => void;
+  onViewChange: (view: 'home' | 'shop' | 'about' | 'contact' | 'admin') => void;
 }
 
 export default function ShopView({
   products,
   categories,
-  onSelectProduct
+  onSelectProduct,
+  onAddToCart,
+  onViewChange
 }: ShopViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -83,13 +88,23 @@ export default function ShopView({
     <div id="shop-view" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
       {/* Title Header */}
-      <div className="mb-8 space-y-2">
-        <h1 className="text-3xl sm:text-4xl font-extrabold font-display tracking-tight text-slate-brand">
-          Browse All Products
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
-          Showing <span className="text-purple-brand font-bold">{filteredProducts.length}</span> high-fashion products available right now.
-        </p>
+      <div className="mb-8 space-y-4">
+        <button 
+          onClick={() => onViewChange('home')}
+          className="flex items-center gap-2 text-purple-brand font-bold text-xs uppercase tracking-widest hover:translate-x-[-4px] transition-transform group"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Home</span>
+        </button>
+        
+        <div className="space-y-1">
+          <h1 className="text-3xl sm:text-4xl font-extrabold font-display tracking-tight text-slate-brand">
+            Browse All Products
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
+            Showing <span className="text-purple-brand font-bold">{filteredProducts.length}</span> high-fashion products available right now.
+          </p>
+        </div>
       </div>
 
       {/* Controls: Search and Mobile Filter Buttons */}
@@ -314,7 +329,7 @@ export default function ShopView({
           </div>
         )}
 
-        {/* Footwear Grid Section */}
+        {/* Wears Grid Section */}
         <div className="flex-grow">
           {filteredProducts.length === 0 ? (
             <div className="py-24 text-center border-2 border-dashed border-gray-200 rounded-2xl space-y-4">
@@ -332,7 +347,13 @@ export default function ShopView({
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {filteredProducts.map((product) => {
-                const catName = categories.find(c => c.id === product.category)?.name || 'Footwear';
+                const catName = categories.find(c => c.id === product.category)?.name || 'Wears';
+                
+                // Calculate if "Just in" (last 7 days)
+                const now = Date.now();
+                const createdDate = product.createdAt?.toMillis() || 0;
+                const isRecent = now - createdDate < 7 * 24 * 60 * 60 * 1000;
+
                 return (
                   <div
                     key={product.id}
@@ -347,37 +368,70 @@ export default function ShopView({
                         className="w-full h-full object-cover object-center group-hover:scale-104 transition-transform duration-500"
                         loading="lazy"
                       />
-                      {product.featured && (
-                        <span className="absolute top-2 right-2 bg-purple-brand text-white p-1 rounded-full shadow-xs">
-                          <Star className="w-3.5 h-3.5 fill-white stroke-none" />
+                      {isRecent && (
+                        <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">
+                          JUST IN
+                        </span>
+                      )}
+                      {product.discountPrice && (
+                        <span className="absolute bottom-2 left-2 bg-purple-brand text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">
+                          OFFER
                         </span>
                       )}
                       {product.stock === 0 && (
-                        <span className="absolute top-2 left-2 bg-red-600 text-white text-[9px] font-bold font-mono py-1 px-2 rounded-full">
-                          SOLD OUT
-                        </span>
-                      )}
-                      {product.stock > 0 && product.stock <= 3 && (
-                        <span className="absolute top-2 left-2 bg-amber-500 text-slate-brand text-[9px] font-bold font-mono py-1 px-2 rounded-full">
-                          LOW STOCK
-                        </span>
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center backdrop-blur-[2px]">
+                          <span className="bg-red-600 text-white text-[9px] font-bold font-mono py-1.5 px-3 rounded-full">
+                            SOLD OUT
+                          </span>
+                        </div>
                       )}
                     </div>
                     
                     <div className="space-y-1 px-1">
-                      <p className="text-[10px] tracking-widest text-purple-brand/80 font-bold uppercase">
-                        {catName}
-                      </p>
+                      <div className="flex justify-between items-center">
+                        <p className="text-[9px] tracking-widest text-purple-brand/80 font-bold uppercase">
+                          {catName}
+                        </p>
+                        {product.sizes && product.sizes.length > 0 && (
+                          <p className="text-[8px] text-slate-brand/40 font-bold uppercase">
+                            {product.sizes.length} Sizes
+                          </p>
+                        )}
+                      </div>
                       <h3 className="font-semibold text-xs sm:text-sm text-slate-brand line-clamp-1 group-hover:text-purple-brand transition-colors">
                         {product.name}
                       </h3>
                       <div className="flex justify-between items-center pt-2">
-                        <span className="text-xs sm:text-sm font-extrabold text-slate-brand font-mono">
-                          &#8358; {product.price.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] font-bold text-purple-brand/90 hover:underline uppercase tracking-wide">
-                          View details
-                        </span>
+                        <div className="flex flex-col">
+                          {product.discountPrice ? (
+                            <>
+                              <span className="text-xs sm:text-sm font-extrabold text-emerald-600 font-mono">
+                                &#8358; {product.discountPrice.toLocaleString()}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-brand/30 line-through font-mono">
+                                &#8358; {product.price.toLocaleString()}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs sm:text-sm font-extrabold text-slate-brand font-mono">
+                              &#8358; {product.price.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <motion.button 
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddToCart(product);
+                            }}
+                            className="bg-purple-brand text-white p-1.5 rounded-full hover:bg-opacity-90 transition-all cursor-pointer shadow-sm"
+                            title="Add to Cart"
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                          </motion.button>
+                        </div>
                       </div>
                     </div>
                   </div>

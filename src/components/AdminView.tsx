@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { 
   Plus, Edit, Trash2, LayoutDashboard, ShoppingCart, FolderTree, AlertTriangle, 
-  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Database 
+  Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Database,
+  Image as ImageIcon, Upload, Loader2, Camera
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
 import { forceResetDatabase } from '../data/seed';
 import BulkUpload from './BulkUpload';
@@ -55,6 +58,62 @@ export default function AdminView({
   const [prodStock, setProdStock] = useState<number>(0);
   const [prodFeatured, setProdFeatured] = useState<boolean>(false);
   const [prodStatus, setProdStatus] = useState<'active' | 'draft' | 'out_of_stock'>('active');
+  const [prodDiscountPrice, setProdDiscountPrice] = useState<string>('');
+  const [prodSizes, setProdSizes] = useState<string>('');
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // 1. Image Compression
+      const options = {
+        maxSizeMB: 0.8, // Max 800KB for mobile efficiency
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      // 2. Upload to Firebase Storage
+      const storageRef = ref(storage, `${target === 'product' ? 'products' : 'categories'}/${Date.now()}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error('Upload error:', error);
+          displayNotice('Failed to upload image. Please try again.');
+          setIsUploading(false);
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          if (target === 'product') {
+            setProdImages(prev => prev ? `${prev}, ${downloadURL}` : downloadURL);
+          } else {
+            setCatImage(downloadURL);
+          }
+          setIsUploading(false);
+          setUploadProgress(0);
+          displayNotice('Image optimized and uploaded successfully!');
+        }
+      );
+    } catch (error) {
+      console.error('Compression error:', error);
+      displayNotice('Failed to process image.');
+      setIsUploading(false);
+    }
+  };
 
   // Category Form Input field binds
   const [catName, setCatName] = useState('');
@@ -80,11 +139,15 @@ export default function AdminView({
       setProdStock(prod.stock);
       setProdFeatured(prod.featured);
       setProdStatus(prod.status);
+      setProdDiscountPrice(prod.discountPrice ? String(prod.discountPrice) : '');
+      setProdSizes(prod.sizes ? prod.sizes.join(', ') : '');
     } else {
       setProductEditing(null);
       setProdName('');
       setProdDesc('');
       setProdPrice(15000);
+      setProdDiscountPrice('');
+      setProdSizes('38, 39, 40, 41, 42, 43, 44, 45');
       setProdImages('https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80');
       setProdCategory(categories[0]?.id || 'sneakers');
       setProdStock(10);
@@ -100,15 +163,19 @@ export default function AdminView({
     setActionLoading(true);
     
     const preparedImages = prodImages.split(',').map(img => img.trim()).filter(img => img.length > 0);
+    const preparedSizes = prodSizes.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    
     const productPayload = {
       name: prodName,
       description: prodDesc,
       price: Number(prodPrice),
+      discountPrice: prodDiscountPrice ? Number(prodDiscountPrice) : null,
       images: preparedImages.length > 0 ? preparedImages : ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80'],
       category: prodCategory,
       stock: Number(prodStock),
       featured: prodFeatured,
       status: prodStatus,
+      sizes: preparedSizes,
       updatedAt: serverTimestamp()
     };
 
@@ -290,7 +357,8 @@ export default function AdminView({
           </div>
 
           <div className="p-4 bg-purple-brand/5 border border-purple-brand/15 rounded-xl text-left space-y-1 text-xs text-purple-950 font-medium">
-            <p className="font-bold">Authorized Account:</p>
+            <p className="font-bold">Authorized Accounts:</p>
+            <p className="font-mono text-[11px]">greatifet12@gmail.com</p>
             <p className="font-mono text-[11px]">aroneefashion@gmail.com</p>
             <p className="text-[10px] text-slate-brand/50 mt-1 block">Please log in using an authorized store administrator email address profile.</p>
           </div>
@@ -388,7 +456,7 @@ export default function AdminView({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             
             <div className="bg-white border border-gray-100 p-6 rounded-2xl space-y-2 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-brand/40 uppercase tracking-widest block font-sans">Listed Footwear</span>
+              <span className="text-[10px] font-bold text-slate-brand/40 uppercase tracking-widest block font-sans">Listed Wears</span>
               <p className="text-3xl font-extrabold font-mono text-slate-brand">{totalProducts}</p>
               <p className="text-[10px] text-slate-brand/50 font-medium">Active products inside DB</p>
             </div>
@@ -444,7 +512,7 @@ export default function AdminView({
           
           <div className="flex justify-between items-center sm:gap-2 border-b border-gray-100 pb-4">
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">Manage Footwear Inventory</h3>
+              <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">Manage Wears Inventory</h3>
               <p className="text-[10.5px] text-slate-brand/55">Create customized listings, set prices, and update stock counts.</p>
             </div>
             <button
@@ -468,7 +536,9 @@ export default function AdminView({
                       <th className="p-4">Shoe</th>
                       <th className="p-4">Category</th>
                       <th className="p-4">Pricing</th>
+                      <th className="p-4">Discount</th>
                       <th className="p-4">Stock</th>
+                      <th className="p-4">Updated</th>
                       <th className="p-4">Featured</th>
                       <th className="p-4">Status</th>
                       <th className="p-4 text-right">Actions</th>
@@ -477,17 +547,33 @@ export default function AdminView({
                   <tbody className="divide-y divide-gray-100 font-medium">
                     {products.map((p) => {
                       const cName = categories.find(c => c.id === p.category)?.name || p.category;
+                      const updateTime = p.updatedAt?.seconds 
+                        ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('en-GB') 
+                        : 'N/A';
                       return (
                         <tr key={p.id} className="hover:bg-gray-brand/50 transition-colors">
                           <td className="p-4 flex items-center space-x-3 max-w-xs">
                             <img src={p.images[0]} alt="" className="w-10 h-10 object-cover rounded-lg bg-gray-100 shrink-0 border border-gray-200" referrerPolicy="no-referrer" />
-                            <span className="font-bold text-slate-brand line-clamp-1">{p.name}</span>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-brand line-clamp-1">{p.name}</span>
+                              <span className="text-[9px] text-slate-brand/40 uppercase font-bold tracking-tighter">
+                                {p.sizes?.join(', ') || 'Standard'}
+                              </span>
+                            </div>
                           </td>
                           <td className="p-4 text-slate-brand/70 uppercase font-mono tracking-wider">{cName}</td>
-                          <td className="p-4 font-mono font-bold">&#8358; {p.price.toLocaleString()}</td>
-                          <td className={`p-4 font-mono font-bold ${p.stock === 0 ? 'text-red-600' : 'text-slate-brand'}`}>
-                            {p.stock} units
+                          <td className="p-4 font-mono font-bold text-slate-brand">₦{p.price.toLocaleString()}</td>
+                          <td className="p-4 font-mono font-bold">
+                            {p.discountPrice ? (
+                              <span className="text-emerald-600">₦{p.discountPrice.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-slate-brand/30">None</span>
+                            )}
                           </td>
+                          <td className={`p-4 font-mono font-bold ${p.stock === 0 ? 'text-red-600' : 'text-slate-brand'}`}>
+                            {p.stock}
+                          </td>
+                          <td className="p-4 text-slate-brand/50 font-mono text-[10px]">{updateTime}</td>
                           <td className="p-4">
                             {p.featured ? (
                               <span className="bg-purple-brand/10 text-purple-brand px-2 py-0.5 rounded-full text-[9px] font-bold">YES</span>
@@ -776,7 +862,7 @@ export default function AdminView({
             
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <h3 className="font-bold text-base sm:text-lg text-slate-brand font-display">
-                {productEditing ? 'Update Shoe Specifications' : 'List New Footwear Item'}
+                {productEditing ? 'Update Item Specifications' : 'List New Wear Item'}
               </h3>
               <button onClick={() => setIsProductFormOpen(false)} className="p-1 text-slate-brand/50 hover:text-red-700 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -806,7 +892,7 @@ export default function AdminView({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-brand/85 uppercase">Price (₦ - Naira)</label>
+                  <label className="font-bold text-slate-brand/85 uppercase">Base Price (₦)</label>
                   <input
                     type="number" required min="0"
                     value={prodPrice} onChange={e => setProdPrice(Number(e.target.value))}
@@ -815,7 +901,26 @@ export default function AdminView({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-brand/85 uppercase">Stock LimitCount</label>
+                  <label className="font-bold text-slate-brand/85 uppercase">Discount Price (₦)</label>
+                  <input
+                    type="number" min="0" placeholder="Optional"
+                    value={prodDiscountPrice} onChange={e => setProdDiscountPrice(e.target.value)}
+                    className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-xs text-emerald-600 font-semibold underline-none font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="font-bold text-slate-brand/85 uppercase">Available Sizes</label>
+                  <input
+                    type="text" placeholder="e.g. 38, 39, 40, 41 (comma separated)"
+                    value={prodSizes} onChange={e => setProdSizes(e.target.value)}
+                    className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-xs text-slate-brand font-semibold outline-none focus:border-purple-brand transition-all"
+                  />
+                  <p className="text-[9px] text-slate-brand/40 font-medium">Leave blank for categories where size doesn't apply (e.g. bags).</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-brand/85 uppercase">Inventory Count</label>
                   <input
                     type="number" required min="0"
                     value={prodStock} onChange={e => setProdStock(Number(e.target.value))}
@@ -846,9 +951,16 @@ export default function AdminView({
                 </div>
 
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="font-bold text-slate-brand/85 uppercase flex justify-between">
+                  <label className="font-bold text-slate-brand/85 uppercase flex justify-between items-center">
                     <span>Image Gallery URLs</span>
-                    <span className="text-[9px] text-purple-brand">Comma-delimited formatting</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-purple-brand font-medium">Auto-compressed uploads</span>
+                      <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm ${isUploading ? 'bg-gray-100 text-gray-400' : 'bg-purple-brand text-white hover:bg-purple-brand/90'}`}>
+                        {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                        {isUploading ? `${Math.round(uploadProgress)}%` : 'Upload File'}
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'product')} disabled={isUploading} />
+                      </label>
+                    </div>
                   </label>
                   <textarea
                     required rows={2} placeholder="https://unsplash.com/... , https://unsplash.com/..."
@@ -917,7 +1029,14 @@ export default function AdminView({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-brand/85 uppercase">Cover Image Banner URL</label>
+                <label className="font-bold text-slate-brand/85 uppercase flex justify-between items-center">
+                  <span>Cover Image Banner URL</span>
+                  <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm ${isUploading ? 'bg-gray-100 text-gray-400' : 'bg-purple-brand text-white hover:bg-purple-brand/90'}`}>
+                    {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                    {isUploading ? `${Math.round(uploadProgress)}%` : 'Upload Banner'}
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'category')} disabled={isUploading} />
+                  </label>
+                </label>
                 <input
                   type="url" required placeholder="https://images.unsplash.com/..."
                   value={catImage} onChange={e => setCatImage(e.target.value)}

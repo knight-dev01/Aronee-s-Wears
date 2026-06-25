@@ -82,7 +82,7 @@ export default function WalkthroughGuide() {
       title: "Customize & Choose Your Size",
       badge: "STEP 2: CUSTOMIZATION",
       icon: Sliders,
-      description: "Footwear fit is personal. Our store supports direct sizing specifications so your order sits perfectly snug.",
+      description: "Wears fit is personal. Our store supports direct sizing specifications so your order sits perfectly snug.",
       instructions: [
         "Click on any footwear card in the Shop page to open the high-fidelity detailed view.",
         "Examine high-definition product material shots and detailed stitching specs.",
