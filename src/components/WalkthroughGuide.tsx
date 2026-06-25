@@ -27,7 +27,7 @@ export default function WalkthroughGuide() {
       title: "Discover & Filter the Catalog",
       badge: "STEP 1: EXPLORATION",
       icon: Search,
-      description: "Instantly explore Nigeria's trendiest footwear, from custom sneakers to elegant bridal heels and durable leather sandals.",
+      description: "Instantly explore Nigeria's trendiest wears, from custom sneakers to elegant bridal heels and durable leather sandals.",
       instructions: [
         "Select pre-sorted main categories (e.g., Sneakers, Heels, Sandals/Slides) in the Catalog view.",
         "Use the category counters to find exactly how many items are in active stock.",
@@ -84,7 +84,7 @@ export default function WalkthroughGuide() {
       icon: Sliders,
       description: "Wears fit is personal. Our store supports direct sizing specifications so your order sits perfectly snug.",
       instructions: [
-        "Click on any footwear card in the Shop page to open the high-fidelity detailed view.",
+        "Click on any product card in the Shop page to open the high-fidelity detailed view.",
         "Examine high-definition product material shots and detailed stitching specs.",
         "Select your appropriate Nigerian/EU Shoe Size from the size selector panel."
       ],
@@ -136,7 +136,7 @@ export default function WalkthroughGuide() {
       icon: ShoppingBag,
       description: "Unlike slow global corporate stores, we use a lightweight, instant 'Order Draft' that requires absolutely zero registration upfront.",
       instructions: [
-        "Select size and click 'Add to Order Draft' to register your footwear locally.",
+        "Select size and click 'Add to Order Draft' to register your items locally.",
         "Your cart drawer is stored securely in browser state and doesn't get wiped on refresh.",
         "Add multiple shoe models or size selections into a single comprehensive draft."
       ],

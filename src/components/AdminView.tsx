@@ -297,7 +297,7 @@ export default function AdminView({
     try {
       const res = await forceResetDatabase();
       if (res) {
-        displayNotice('Database successfully re-seeded with default footwear catalogs!');
+        displayNotice('Database successfully re-seeded with default wears catalogs!');
         await onRefreshData();
       } else {
         alert('Encountered an issue seeding. Ensure your auth has admin permissions.');
@@ -527,7 +527,7 @@ export default function AdminView({
           {/* List display */}
           <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-2xs">
             {products.length === 0 ? (
-              <div className="p-10 text-center text-slate-brand/50 text-sm">No footwear products listed yet. Seed database!</div>
+              <div className="p-10 text-center text-slate-brand/50 text-sm">No wears products listed yet. Seed database!</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
@@ -623,7 +623,7 @@ export default function AdminView({
           <div className="flex justify-between items-center sm:gap-2 border-b border-gray-100 pb-4">
             <div>
               <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">Manage Categories</h3>
-              <p className="text-[10.5px] text-slate-brand/55 font-sans">Set distinct footwear segments, banners and track calculated catalogs.</p>
+              <p className="text-[10.5px] text-slate-brand/55 font-sans">Set distinct wears segments, banners and track calculated catalogs.</p>
             </div>
             <button
               onClick={() => openCategoryForm()}
@@ -885,7 +885,7 @@ export default function AdminView({
                 <div className="space-y-1 sm:col-span-2">
                   <label className="font-bold text-slate-brand/85 uppercase">Product Description</label>
                   <textarea
-                    required rows={3} placeholder="Describe footwear materials, styles, sizing guidelines..."
+                    required rows={3} placeholder="Describe wears materials, styles, sizing guidelines..."
                     value={prodDesc} onChange={e => setProdDesc(e.target.value)}
                     className="w-full bg-gray-brand border border-gray-200 rounded-xl py-2.5 px-3.5 text-xs text-slate-brand outline-none focus:border-purple-brand transition-all leading-relaxed"
                   />

@@ -5,7 +5,7 @@ export default function AboutView() {
   const values = [
     {
       title: 'Precision Quality',
-      desc: 'All selected footwear products must undergo rigid material stress testing and stitching audits.',
+      desc: 'All selected products must undergo rigid material stress testing and stitching audits.',
       icon: ShieldCheck
     },
     {
@@ -32,7 +32,7 @@ export default function AboutView() {
           Fusing Premium Craft & Urban Style
         </h1>
         <p className="text-sm sm:text-base text-slate-brand/60 font-light leading-relaxed">
-          How a passion for quality and design created a trusted hub for sneaker enthusiasts, heel fashionistas, and footwear lovers across Lagos, Nigeria.
+          How a passion for quality and design created a trusted hub for fashionistas and lovers of luxury wears across Lagos, Nigeria.
         </p>
         <div className="w-16 h-1 bg-purple-brand mx-auto rounded-full mt-4" />
       </section>
@@ -76,7 +76,7 @@ export default function AboutView() {
             Our Mission Statement
           </h3>
           <p className="text-sm text-purple-100 font-light leading-relaxed">
-            To curate and deliver high-quality, elegant, and resilient footwear and accessories that amplify personal confidence, while ensuring seamless and highly transparent customer transactions from product discovery to door delivery.
+            To curate and deliver high-quality, elegant, and resilient wears and accessories that amplify personal confidence, while ensuring seamless and highly transparent customer transactions from product discovery to door delivery.
           </p>
         </div>
 
@@ -88,7 +88,7 @@ export default function AboutView() {
             Our Vision Statement
           </h3>
           <p className="text-sm text-gray-300 font-light leading-relaxed">
-            To be recognized as Nigeria’s most trusted, agile, and beloved mobile footwear fashion storefront, uniting traditional high-craft standards with progressive modern-era e-commerce accessibility.
+            To be recognized as Nigeria’s most trusted, agile, and beloved mobile wears fashion storefront, uniting traditional high-craft standards with progressive modern-era e-commerce accessibility.
           </p>
         </div>
       </section>

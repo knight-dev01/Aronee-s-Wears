@@ -35,7 +35,7 @@ export default function ContactView({
           Get in Touch
         </h1>
         <p className="text-sm text-slate-brand/60 font-medium">
-          Have any footwear inquiries? Need custom sizing details? Message us directly!
+          Have any fashion inquiries? Need custom sizing details? Message us directly!
         </p>
         <div className="w-16 h-1 bg-purple-brand mx-auto rounded-full" />
       </div>

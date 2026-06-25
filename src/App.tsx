@@ -378,7 +378,7 @@ Please provide payment instructions and coordinate home delivery options.`;
 
             <div className="space-y-3">
               <p className="text-slate-brand/60 text-sm font-medium leading-relaxed">
-                Join our exclusive fashion community for premium footwear, personalized updates, and secret discounts!
+                Join our exclusive fashion community for premium wears, personalized updates, and secret discounts!
               </p>
               <div className="flex items-center gap-2 justify-center text-[10px] text-purple-brand font-bold uppercase tracking-wider bg-purple-brand/5 py-2 rounded-xl">
                 <AlertCircle className="w-3 h-3" />

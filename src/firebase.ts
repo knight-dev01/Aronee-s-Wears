@@ -2,20 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-const firebaseConfig = {
-  apiKey: "AIzaSyANae-pEfnPeL9YczSHUjYGt1pB56bEjUA",
-  authDomain: "aronee-s-wears.firebaseapp.com",
-  projectId: "aronee-s-wears",
-  storageBucket: "aronee-s-wears.firebasestorage.app",
-  messagingSenderId: "653105300505",
-  appId: "1:653105300505:web:86df95ffe02d5150401688",
-  measurementId: "G-NH3F8TFXJY"
-};
+import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: The app will break without specifying the custom databaseId
-export const db = getFirestore(app);
+// Initialize Firestore with the databaseId from the provisioned config
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

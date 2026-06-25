@@ -333,7 +333,7 @@ export default function ShopView({
         <div className="flex-grow">
           {filteredProducts.length === 0 ? (
             <div className="py-24 text-center border-2 border-dashed border-gray-200 rounded-2xl space-y-4">
-              <p className="text-base font-semibold text-slate-brand/70">No compatible footwear matches found</p>
+              <p className="text-base font-semibold text-slate-brand/70">No compatible wears matches found</p>
               <p className="text-xs text-slate-brand/40 font-medium max-w-sm mx-auto">
                 Try loosening your parameters, resetting the active filters, or scanning with a different search query!
               </p>

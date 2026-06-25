@@ -2,12 +2,12 @@
   "entities": {
     "product": {
       "title": "Product",
-      "description": "Represents a footwear item or fashion accessory in the store inventory.",
+      "description": "Represents a wear item or fashion accessory in the store inventory.",
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "description": "Name of the footwear."
+          "description": "Name of the wear item."
         },
         "description": {
           "type": "string",

@@ -45,12 +45,12 @@ export const defaultCategories: SeedCategory[] = [
     image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=800&q=80'
   },
   {
-    id: 'mens-footwear',
+    id: 'mens-wears',
     name: "Men's Wears",
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80'
   },
   {
-    id: 'womens-footwear',
+    id: 'womens-wears',
     name: "Women's Wears",
     image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80'
   }
@@ -139,7 +139,7 @@ export const defaultProducts: SeedProduct[] = [
     images: [
       'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80'
     ],
-    category: 'mens-footwear',
+    category: 'mens-wears',
     stock: 10,
     featured: true,
     status: 'active'
@@ -151,7 +151,7 @@ export const defaultProducts: SeedProduct[] = [
     images: [
       'https://images.unsplash.com/photo-1520639888713-7851133b1ed0?auto=format&fit=crop&w=800&q=80'
     ],
-    category: 'mens-footwear',
+    category: 'mens-wears',
     stock: 5,
     featured: false,
     status: 'active'
@@ -187,8 +187,8 @@ export const defaultSettings = {
   whatsappNumber: '+2348123456789',
   contactAddress: 'Shop 14, Ikotun Fashion Plaza, Governor Road, Ikotun, Lagos, Nigeria',
   contactEmail: 'aroneefashion@gmail.com',
-  instagramUrl: 'https://instagram.com/aroneesfootwear',
-  facebookUrl: 'https://facebook.com/aroneesfootwear',
+  instagramUrl: 'https://instagram.com/aroneeswears',
+  facebookUrl: 'https://facebook.com/aroneeswears',
   businessHours: 'Monday - Saturday: 8:00 AM - 7:00 PM'
 };
 
@@ -227,7 +227,7 @@ export async function checkAndSeedDatabase() {
         });
       });
       
-      // 3. Seed footwear products
+      // 3. Seed wears products
       defaultProducts.forEach((prod, idx) => {
         const prodId = `prod-${idx + 1}`;
         const prodRef = doc(db, 'products', prodId);

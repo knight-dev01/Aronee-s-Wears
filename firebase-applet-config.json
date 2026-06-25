@@ -1,10 +1,10 @@
 {
-  "projectId": "feisty-cathode-f3jwj",
-  "appId": "1:480956811926:web:ef49a4586e2fa982f7d0b7",
-  "apiKey": "AIzaSyAivdgDVoVw5lD_UFuWEm9ZcLT1cFh7BPM",
-  "authDomain": "feisty-cathode-f3jwj.firebaseapp.com",
+  "projectId": "aronee-s-wears",
+  "appId": "1:653105300505:web:52f8cc9705febba4401688",
+  "apiKey": "AIzaSyANae-pEfnPeL9YczSHUjYGt1pB56bEjUA",
+  "authDomain": "aronee-s-wears.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-76995c3e-c9b7-43f1-ae57-687aa56e8de5",
-  "storageBucket": "feisty-cathode-f3jwj.firebasestorage.app",
-  "messagingSenderId": "480956811926",
+  "storageBucket": "aronee-s-wears.firebasestorage.app",
+  "messagingSenderId": "653105300505",
   "measurementId": ""
 }

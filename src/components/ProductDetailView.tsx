@@ -27,7 +27,7 @@ export default function ProductDetailView({
   const [addFeedback, setAddFeedback] = useState(false);
 
   // Generate size choices based on category type
-  const isWomens = ['heels', 'womens-footwear'].includes(product.category);
+  const isWomens = ['heels', 'womens-wears'].includes(product.category);
   const isBags = ['bags', 'accessories'].includes(product.category);
   
   // Standard sizing selections
@@ -213,7 +213,7 @@ Please provide payment and delivery details.`;
                 <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
                 <div>
                   <p className="font-bold">Currently Sold Out</p>
-                  <p>This item is currently out of stock. Contact the owner below to customize or backorder this footwear!</p>
+                  <p>This item is currently out of stock. Contact the owner below to customize or backorder this item!</p>
                 </div>
               </div>
             ) : null}
