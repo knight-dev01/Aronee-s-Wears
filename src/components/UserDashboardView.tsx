@@ -84,13 +84,15 @@ export default function UserDashboardView({ user, onLogout, onViewChange }: User
                       Your fashion journey is just beginning. Start shopping to build your history!
                     </p>
                   </div>
-                  <button 
+                  <motion.button 
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => onViewChange('shop')}
-                    className="inline-flex items-center gap-2 bg-slate-brand text-white text-xs font-bold px-6 py-3 rounded-full hover:bg-opacity-90 transition-all shadow-md group"
+                    className="inline-flex items-center gap-2 bg-slate-brand text-white text-xs font-bold px-6 py-3 rounded-full hover:bg-opacity-90 shadow-md group cursor-pointer"
                   >
                     <span>Browse Storefront</span>
                     <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </div>
@@ -114,24 +116,28 @@ export default function UserDashboardView({ user, onLogout, onViewChange }: User
             </div>
 
             <div className="space-y-3">
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => onViewChange('shop')}
-                className="w-full flex items-center justify-between p-5 bg-white border border-gray-100 rounded-2xl hover:border-purple-brand/30 transition-all group"
+                className="w-full flex items-center justify-between p-5 bg-white border border-gray-100 rounded-2xl hover:border-purple-brand/35 transition-all group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <Heart className="w-5 h-5 text-red-400" />
                   <span className="font-bold text-slate-brand text-sm">Wishlist</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-brand transition-colors" />
-              </button>
+              </motion.button>
 
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={onLogout}
-                className="w-full flex items-center gap-3 p-5 bg-red-50 text-red-600 border border-red-100 rounded-2xl hover:bg-red-100 transition-all font-bold text-sm"
+                className="w-full flex items-center gap-3 p-5 bg-red-50 text-red-600 border border-red-100 rounded-2xl hover:bg-red-100 transition-all font-bold text-sm cursor-pointer"
               >
                 <LogOut className="w-5 h-5" />
                 Sign Out
-              </button>
+              </motion.button>
             </div>
 
           </div>

@@ -327,14 +327,14 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
-      <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="flex justify-between items-center border-b border-gray-100 pb-4">
           <div>
-            <h3 className="text-xl font-bold text-slate-brand font-display flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold text-slate-brand font-display flex items-center gap-2">
               <Database className="w-5 h-5 text-purple-brand" />
               Inventory Power Ingress
             </h3>
-            <p className="text-[10px] text-slate-brand/40 font-bold uppercase tracking-widest mt-1">Bulk upload multiple products</p>
+            <p className="text-[10px] text-slate-brand/40 font-bold uppercase tracking-widest mt-1">Efficient Batch Store Management</p>
           </div>
           {onClose && (
             <button onClick={onClose} className="p-2 text-slate-brand/40 hover:text-red-700 transition-colors">

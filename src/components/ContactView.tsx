@@ -1,4 +1,5 @@
 import { MapPin, Mail, Clock, MessageSquare, Instagram, Facebook, Send } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface ContactViewProps {
   whatsappNumber: string;
@@ -7,6 +8,7 @@ interface ContactViewProps {
   instagramUrl: string;
   facebookUrl: string;
   businessHours: string;
+  onShowToast?: (message: string) => void;
 }
 
 export default function ContactView({
@@ -15,11 +17,39 @@ export default function ContactView({
   contactEmail,
   instagramUrl,
   facebookUrl,
-  businessHours
+  businessHours,
+  onShowToast
 }: ContactViewProps) {
 
-  const handleWhatsAppChat = () => {
-    const text = encodeURIComponent("Hello Aronee Wears, I would like to make an inquiry about product availability and shipping!");
+  const handleWhatsAppChat = async () => {
+    const rawText = "Hello Aronee's Wears, I would like to make an inquiry about product availability and shipping!";
+    
+    try {
+      await navigator.clipboard.writeText(rawText);
+      if (onShowToast) {
+        onShowToast('Inquiry message copied to clipboard! Opening WhatsApp...');
+      }
+    } catch (clipboardErr) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = rawText;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (onShowToast) {
+          onShowToast('Inquiry message copied! Opening WhatsApp...');
+        }
+      } catch (fallbackErr) {
+        console.error('Failed to copy to clipboard', fallbackErr);
+      }
+    }
+
+    const text = encodeURIComponent(rawText);
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 
@@ -27,7 +57,13 @@ export default function ContactView({
     <div id="contact-view" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
       
       {/* Header */}
-      <div className="text-center max-w-xl mx-auto mb-12 sm:mb-16 space-y-3">
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+        className="text-center max-w-xl mx-auto mb-12 sm:mb-16 space-y-3"
+      >
         <span className="text-purple-brand font-mono font-bold text-xs uppercase tracking-[0.2em] block">
           Visit or Call Us
         </span>
@@ -38,7 +74,7 @@ export default function ContactView({
           Have any fashion inquiries? Need custom sizing details? Message us directly!
         </p>
         <div className="w-16 h-1 bg-purple-brand mx-auto rounded-full" />
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         
@@ -47,7 +83,10 @@ export default function ContactView({
           
           {/* Blocks */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs">
+            <motion.div 
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs cursor-pointer"
+            >
               <div className="w-10 h-10 bg-purple-brand/10 text-purple-brand rounded-full flex items-center justify-center">
                 <MapPin className="w-5 h-5" />
               </div>
@@ -57,9 +96,12 @@ export default function ContactView({
               <p className="text-xs text-slate-brand/65 leading-relaxed font-sans">
                 {contactAddress}
               </p>
-            </div>
+            </motion.div>
 
-            <div className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs">
+            <motion.div 
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs cursor-pointer"
+            >
               <div className="w-10 h-10 bg-purple-brand/10 text-purple-brand rounded-full flex items-center justify-center">
                 <Mail className="w-5 h-5" />
               </div>
@@ -69,9 +111,12 @@ export default function ContactView({
               <p className="text-xs text-slate-brand/65 leading-relaxed font-sans truncate">
                 {contactEmail}
               </p>
-            </div>
+            </motion.div>
 
-            <div className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs">
+            <motion.div 
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs cursor-pointer"
+            >
               <div className="w-10 h-10 bg-purple-brand/10 text-purple-brand rounded-full flex items-center justify-center">
                 <Clock className="w-5 h-5" />
               </div>
@@ -81,9 +126,12 @@ export default function ContactView({
               <p className="text-xs text-slate-brand/65 leading-relaxed font-sans">
                 {businessHours}
               </p>
-            </div>
+            </motion.div>
 
-            <div className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs">
+            <motion.div 
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bg-gray-brand border border-gray-100 p-6 rounded-2xl space-y-3 shadow-2xs cursor-pointer"
+            >
               <div className="w-10 h-10 bg-purple-brand/10 text-purple-brand rounded-full flex items-center justify-center">
                 <MessageSquare className="w-5 h-5" />
               </div>
@@ -93,7 +141,7 @@ export default function ContactView({
               <p className="text-xs text-slate-brand/65 leading-relaxed font-sans">
                 {whatsappNumber} (24/7 Response)
               </p>
-            </div>
+            </motion.div>
           </div>
 
           {/* Social connections */}
@@ -102,28 +150,34 @@ export default function ContactView({
               Connect With Us
             </h3>
             <div className="flex gap-4">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={handleWhatsAppChat}
-                className="flex-1 bg-purple-brand text-white font-bold text-xs py-3.5 px-6 rounded-xl shadow-md cursor-pointer hover:bg-opacity-95 transition-all text-center flex items-center justify-center space-x-2"
+                className="flex-1 bg-purple-brand text-white font-bold text-xs py-3.5 px-6 rounded-xl shadow-md cursor-pointer hover:bg-opacity-95 text-center flex items-center justify-center space-x-2"
               >
                 <span>Chat via WhatsApp</span>
-              </button>
-              <a
+              </motion.button>
+              <motion.a
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
                 href={instagramUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="p-3 bg-gray-brand border border-gray-200 text-slate-brand/80 hover:text-purple-brand rounded-xl cursor-pointer transition-colors flex items-center justify-center"
+                className="p-3 bg-gray-brand border border-gray-200 text-slate-brand/80 hover:text-purple-brand rounded-xl cursor-pointer flex items-center justify-center"
               >
                 <Instagram className="w-5 h-5" />
-              </a>
-              <a
+              </motion.a>
+              <motion.a
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
                 href={facebookUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="p-3 bg-gray-brand border border-gray-200 text-slate-brand/80 hover:text-purple-brand rounded-xl cursor-pointer transition-colors flex items-center justify-center"
+                className="p-3 bg-gray-brand border border-gray-200 text-slate-brand/80 hover:text-purple-brand rounded-xl cursor-pointer flex items-center justify-center"
               >
                 <Facebook className="w-5 h-5" />
-              </a>
+              </motion.a>
             </div>
           </div>
 
@@ -166,7 +220,7 @@ export default function ContactView({
               <rect x="150" y="70" width="100" height="50" rx="6" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="1" />
               <text x="160" y="94" fill="#334155" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Ikotun Plaza</text>
 
-              {/* Aronee Wears Pin */}
+              {/* Aronee's Wears Pin */}
               <g className="animate-bounce">
                 <circle cx="200" cy="95" r="4" fill="#6A0DAD" />
                 <path d="M200 95 C195 85, 205 85, 200 95" fill="none" stroke="#6A0DAD" strokeWidth="2" />
@@ -179,7 +233,7 @@ export default function ContactView({
                 <rect x="-60" y="0" width="140" height="30" rx="8" fill="#1E293B" />
                 <polygon points="10,30 5,34 0,30" fill="#1E293B" />
                 <text x="-50" y="16" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
-                  ARONEE WEARS (Shop 14)
+                  ARONEE'S WEARS (Shop 14)
                 </text>
               </g>
             </svg>
@@ -190,14 +244,16 @@ export default function ContactView({
                 <div className="w-3.5 h-3.5 rounded-full bg-purple-brand flex items-center justify-center">
                   <span className="text-[7.5px] text-white font-bold">A</span>
                 </div>
-                <span className="text-[10px] font-bold text-slate-brand">Aronee Wears (Shop 14)</span>
+                <span className="text-[10px] font-bold text-slate-brand">Aronee's Wears (Shop 14)</span>
               </div>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleWhatsAppChat}
                 className="bg-purple-brand text-white font-bold text-[9px] py-1.5 px-3 rounded-lg leading-none cursor-pointer"
               >
                 Send Directions to me
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import {
   collection, query, getDocs, doc, getDoc, setDoc, serverTimestamp, limit, onSnapshot, orderBy, where 
 } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { ShoppingBag, X, MessageSquare, AlertCircle, RefreshCw, Trash2, ArrowUpRight } from 'lucide-react';
+import { ShoppingBag, X, MessageSquare, AlertCircle, RefreshCw, Trash2, ArrowUpRight, Truck, Info } from 'lucide-react';
 
 import { db, auth, loginWithGoogle, logoutUser } from './firebase';
 import { Product, Category, StoreSettings } from './types';
@@ -55,6 +55,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [showCartDeliveryInfo, setShowCartDeliveryInfo] = useState<boolean>(false);
 
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; isVisible: boolean }>({
@@ -316,7 +317,7 @@ export default function App() {
   };
 
   // Compile and Dispatch Multiple Products WhatsApp Order Message
-  const handleLaunchWhatsAppMultipleOrder = () => {
+  const handleLaunchWhatsAppMultipleOrder = async () => {
     if (cartItems.length === 0) return;
     
     let totalVal = 0;
@@ -329,13 +330,34 @@ export default function App() {
       orderDetailLines += `- ${item.product.name}${sizeStr}\n  Qty: ${item.quantity} x ₦${item.product.price.toLocaleString()} = ₦${rowSum.toLocaleString()}\n\n`;
     });
 
-    const bodyText = `Hello Aronee Wears,
+    const bodyText = `Hello Aronee's Wears,
 
 I would like to order the following fashion items from your storefront:
 
 ${orderDetailLines}*Total Order Value:* ₦${totalVal.toLocaleString()}
 
 Please provide payment instructions and coordinate home delivery options.`;
+
+    try {
+      await navigator.clipboard.writeText(bodyText);
+      showToast('Order details copied to clipboard! Opening WhatsApp...');
+    } catch (clipboardErr) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = bodyText;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showToast('Order details copied! Opening WhatsApp...');
+      } catch (fallbackErr) {
+        console.error('Failed to copy to clipboard', fallbackErr);
+      }
+    }
 
     const encoded = encodeURIComponent(bodyText);
     const whatsappClean = settings?.whatsappNumber?.replace(/\+/g, '') || '2348123456789';
@@ -344,6 +366,7 @@ Please provide payment instructions and coordinate home delivery options.`;
     // Clear cart upon launch to reset
     setCartItems([]);
     setIsCartOpen(false);
+    setShowCartDeliveryInfo(false);
   };
 
   // Helper calculating total draft cart item count
@@ -386,7 +409,7 @@ Please provide payment instructions and coordinate home delivery options.`;
               </div>
               <div className="space-y-1">
                 <h1 className="text-3xl font-extrabold font-display text-slate-brand tracking-tight">
-                  Aronee Wears
+                  Aronee's Wears
                 </h1>
                 <p className="text-purple-brand font-bold text-xs uppercase tracking-[0.3em]">
                   Style that defines you
@@ -414,7 +437,7 @@ Please provide payment instructions and coordinate home delivery options.`;
             </button>
 
             <p className="text-[10px] text-slate-brand/40 font-medium leading-relaxed">
-              By entering, you agree to receive email updates and promotional discounts from Aronee Wears. You can unsubscribe at any time.
+              By entering, you agree to receive email updates and promotional discounts from Aronee's Wears. You can unsubscribe at any time.
             </p>
           </div>
         </div>
@@ -449,6 +472,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                 onSelectProduct={handleSelectProduct}
                 whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
                 onAddToCart={handleAddToCart}
+                onShowToast={showToast}
               />
             ) : (
               /* Render tabbed views */
@@ -461,6 +485,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                     onSelectProduct={handleSelectProduct}
                     onAddToCart={handleAddToCart}
                     whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
+                    onShowToast={showToast}
                   />
                 )}
 
@@ -484,6 +509,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                     instagramUrl={settings.instagramUrl}
                     facebookUrl={settings.facebookUrl}
                     businessHours={settings.businessHours}
+                    onShowToast={showToast}
                   />
                 )}
 
@@ -540,7 +566,7 @@ Please provide payment instructions and coordinate home delivery options.`;
               <div className="p-6 border-b border-gray-150 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">WhatsApp Order Draft</h3>
-                  <p className="text-[10px] text-slate-brand/50 font-medium">Draft multiple shoes and message Aronee Wears all at once!</p>
+                  <p className="text-[10px] text-slate-brand/50 font-medium">Draft multiple shoes and message Aronee's Wears all at once!</p>
                 </div>
                 <button onClick={() => setIsCartOpen(false)} className="p-2 text-slate-brand/40 hover:text-red-700 cursor-pointer">
                   <X className="w-5 h-5" />
@@ -637,7 +663,7 @@ Please provide payment instructions and coordinate home delivery options.`;
 
                 <button
                   disabled={cartItems.length === 0}
-                  onClick={handleLaunchWhatsAppMultipleOrder}
+                  onClick={() => setShowCartDeliveryInfo(true)}
                   className="w-full bg-purple-brand disabled:bg-gray-400 text-white font-bold text-xs sm:text-sm tracking-widest uppercase py-4 rounded-full shadow-lg transition-all flex items-center justify-center space-x-2.5 cursor-pointer disabled:cursor-not-allowed"
                 >
                   <MessageSquare className="w-5 h-5 fill-white stroke-none shrink-0" />
@@ -656,8 +682,67 @@ Please provide payment instructions and coordinate home delivery options.`;
         </div>
       )}
 
+      {/* Cart Delivery Info Modal */}
+      {showCartDeliveryInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-brand/80 backdrop-blur-sm animate-fade-in text-xs font-sans">
+          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-scale-in">
+            <div className="bg-purple-brand p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-xl">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold font-display uppercase tracking-widest text-sm">Delivery Information</h3>
+              </div>
+              <button onClick={() => setShowCartDeliveryInfo(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-purple-brand/10 flex items-center justify-center shrink-0">
+                    <span className="text-purple-brand font-bold text-xs font-mono">01</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-brand text-xs uppercase tracking-wider mb-1">Within Lagos</h4>
+                    <p className="text-xs text-slate-brand/60 leading-relaxed font-medium">Estimated arrival in <span className="text-purple-brand font-bold">{settings?.deliveryLagos || '2-3 days'}</span> after confirmation.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-purple-brand/10 flex items-center justify-center shrink-0">
+                    <span className="text-purple-brand font-bold text-xs font-mono">02</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-brand text-xs uppercase tracking-wider mb-1">Outside Lagos</h4>
+                    <p className="text-xs text-slate-brand/60 leading-relaxed font-medium">Estimated arrival in <span className="text-purple-brand font-bold">{settings?.deliveryOutside || '4-5 days'}</span> after confirmation.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-start gap-3">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-amber-800 leading-relaxed">
+                  Your product is currently <strong>reserved for 30 minutes</strong>. 
+                  Send the WhatsApp message to get payment details and secure your items!
+                </p>
+              </div>
+
+              <button 
+                onClick={handleLaunchWhatsAppMultipleOrder}
+                className="w-full bg-purple-brand text-white font-bold text-xs uppercase tracking-widest py-4 rounded-xl shadow-lg hover:bg-opacity-95 transition-all flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="w-4 h-4 fill-white stroke-none" />
+                <span>Confirm & Open WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FLOATING SUPPORT BUTTON */}
-      <WhatsAppButton phoneNumber={settings?.whatsappNumber} />
+      <WhatsAppButton phoneNumber={settings?.whatsappNumber} onShowToast={showToast} />
 
       {/* SUCCESS TOAST NOTIFICATION */}
       <Toast 

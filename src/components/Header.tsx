@@ -43,15 +43,16 @@ export default function Header({
           
           {/* Brand Logo & Name */}
           <div className="flex-shrink-0 cursor-pointer flex items-center space-x-2" onClick={() => handleNavClick('home')}>
-            <div className="w-10 h-10 rounded-full bg-purple-brand flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-xl tracking-tight">A</span>
-            </div>
+            <img src="/logo.png" alt="Aronee's Wears Logo" className="w-10 h-10 object-contain rounded-full" referrerPolicy="no-referrer" />
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg sm:text-xl tracking-wider text-slate-brand leading-none">
-                ARONEE
+                ARONEE'S
               </span>
               <span className="text-[10px] tracking-widest text-purple-brand font-medium uppercase leading-tight">
                 Wears
+              </span>
+              <span className="text-[7px] sm:text-[8px] tracking-[0.1em] text-slate-brand/40 font-bold uppercase leading-none mt-0.5">
+                Style that defines you
               </span>
             </div>
           </div>
@@ -61,7 +62,9 @@ export default function Header({
             {navItems.map((item) => {
               const isActive = currentView === item.value;
               return (
-                <button
+                <motion.button
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   key={item.value}
                   id={`nav-link-${item.value}`}
                   onClick={() => handleNavClick(item.value)}
@@ -71,9 +74,12 @@ export default function Header({
                 >
                   {item.label}
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 w-full h-[2px] bg-purple-brand rounded-full" />
+                    <motion.span 
+                      layoutId="activeUnderline" 
+                      className="absolute bottom-0 left-0 w-full h-[2px] bg-purple-brand rounded-full" 
+                    />
                   )}
-                </button>
+                </motion.button>
               );
             })}
           </nav>
@@ -81,7 +87,9 @@ export default function Header({
           {/* Icons & Actions */}
           <div id="header-actions" className="hidden md:flex items-center space-x-5">
             {/* My Order Drafter/Cart Icon */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               id="cart-trigger"
               onClick={onCartToggle}
               className="relative p-2.5 rounded-full hover:bg-gray-55 text-slate-brand/80 hover:text-purple-brand transition-colors cursor-pointer group"
@@ -102,7 +110,7 @@ export default function Header({
                   </motion.span>
                 )}
               </AnimatePresence>
-            </button>
+            </motion.button>
 
             {/* Admin Dashboard Indicator or Login */}
             {user ? (
@@ -118,28 +126,34 @@ export default function Header({
                     {isAdmin ? 'Admin' : 'Shopper'}
                   </span>
                 </div>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => handleNavClick(isAdmin ? 'admin' : 'account')}
                   className="text-xs bg-purple-brand text-white font-medium px-3 py-1 rounded-full cursor-pointer hover:bg-opacity-90 leading-none shadow-xs"
                 >
                   Dash
-                </button>
+                </motion.button>
               </div>
             ) : (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 id="btn-login"
                 onClick={onLoginClick}
                 className="text-xs font-semibold text-slate-brand hover:text-purple-brand border border-gray-300 rounded-full py-2 px-4.5 transition-all hover:border-purple-brand shadow-2xs cursor-pointer"
               >
                 Admin Login
-              </button>
+              </motion.button>
             )}
           </div>
 
           {/* Mobile Right Controls Menu */}
           <div className="flex items-center md:hidden space-x-3">
             {/* Mobile Cart Icon */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={onCartToggle}
               className="relative p-2 text-slate-brand/80 hover:text-purple-brand cursor-pointer group"
             >
@@ -158,16 +172,17 @@ export default function Header({
                   </motion.span>
                 )}
               </AnimatePresence>
-            </button>
+            </motion.button>
 
             {/* Mobile Nav Toggle */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               id="mobile-nav-toggle"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-slate-brand/80 hover:text-purple-brand focus:outline-none cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+            </motion.button>
           </div>
 
         </div>

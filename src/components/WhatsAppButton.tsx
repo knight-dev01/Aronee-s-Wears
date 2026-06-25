@@ -4,12 +4,42 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface WhatsAppButtonProps {
   phoneNumber?: string;
+  onShowToast?: (message: string) => void;
 }
 
-export default function WhatsAppButton({ phoneNumber = '2348123456789' }: WhatsAppButtonProps) {
-  const cleanNumber = phoneNumber.replace(/\+/g, '');
-  const message = encodeURIComponent("I have a question about your products");
+export default function WhatsAppButton({ phoneNumber, onShowToast }: WhatsAppButtonProps) {
+  const finalNumber = phoneNumber && phoneNumber.trim() !== '' ? phoneNumber : '2348123456789';
+  const cleanNumber = finalNumber.replace(/[^0-9]/g, '');
+  const messageText = "Hello Aronee's Wears, I have a question about your products!";
+  const message = encodeURIComponent(messageText);
   const whatsappUrl = `https://wa.me/${cleanNumber}?text=${message}`;
+
+  const handleClick = async () => {
+    try {
+      await navigator.clipboard.writeText(messageText);
+      if (onShowToast) {
+        onShowToast('Support message copied to clipboard! Opening WhatsApp...');
+      }
+    } catch (clipboardErr) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = messageText;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (onShowToast) {
+          onShowToast('Support message copied! Opening WhatsApp...');
+        }
+      } catch (fallbackErr) {
+        console.error('Failed to copy support message to clipboard', fallbackErr);
+      }
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -17,6 +47,7 @@ export default function WhatsAppButton({ phoneNumber = '2348123456789' }: WhatsA
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={handleClick}
         initial={{ scale: 0, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         whileHover={{ scale: 1.1 }}
@@ -29,7 +60,7 @@ export default function WhatsAppButton({ phoneNumber = '2348123456789' }: WhatsA
         
         {/* Tooltip Label */}
         <span className="absolute right-full mr-3 bg-slate-brand text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-sm">
-          Chatting with Aroneewears
+          Chatting with Aronee's Wears
         </span>
         
         {/* Pulse effect */}

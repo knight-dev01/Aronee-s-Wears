@@ -1070,19 +1070,17 @@ export default function AdminView({
 
       {/* DETAILED FORM MODAL: PRODUCTS EDIT/CREATE */}
       {isBulkUploadOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex items-center justify-center animate-fade-in font-sans">
-          <div className="bg-white w-full h-full shadow-2xl overflow-hidden flex flex-col animate-scale-in">
-            <div className="flex-1 overflow-y-auto bg-gray-brand/30 p-0 sm:p-4 lg:p-8">
-              <div className="max-w-7xl mx-auto">
-                <BulkUpload 
-                  categories={categories} 
-                  onSuccess={async () => {
-                    await onRefreshData();
-                    setIsBulkUploadOpen(false);
-                  }} 
-                  onClose={() => setIsBulkUploadOpen(false)}
-                />
-              </div>
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-0 flex flex-col animate-scale-in">
+            <div className="flex-1 overflow-y-auto bg-white">
+              <BulkUpload 
+                categories={categories} 
+                onSuccess={async () => {
+                  await onRefreshData();
+                  setIsBulkUploadOpen(false);
+                }} 
+                onClose={() => setIsBulkUploadOpen(false)}
+              />
             </div>
           </div>
         </div>

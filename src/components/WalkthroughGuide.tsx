@@ -3,6 +3,7 @@ import {
   Sparkles, Search, Sliders, ShoppingBag, MessageSquare, 
   ShieldAlert, ArrowRight, ArrowLeft, Check, Star, CheckSquare
 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface GuideStep {
   title: string;
@@ -200,7 +201,7 @@ export default function WalkthroughGuide() {
             <div className="space-y-2">
               <p className="text-[10px] text-gray-400 italic text-left">Pre-formatted message sent to store:</p>
               <div className="bg-emerald-950/40 border border-emerald-500/20 text-emerald-100 rounded-xl rounded-tr-none p-3 text-[10px] font-mono leading-relaxed space-y-1">
-                <p className="font-bold text-emerald-400">Order from Aronee Wears:</p>
+                <p className="font-bold text-emerald-400">Order from Aronee's Wears:</p>
                 <p>========================</p>
                 <p>• 1x Superstar Classic Red ({selectedSize})</p>
                 <p>========================</p>
@@ -236,7 +237,7 @@ export default function WalkthroughGuide() {
       title: "Store Management Workspace",
       badge: "STEP 5: ADMIN INSTRUMENTS",
       icon: Sparkles,
-      description: "For store owners: Aronee Wears features a fully equipped admin workspace connected to Firebase.",
+      description: "For store owners: Aronee's Wears features a fully equipped admin workspace connected to Firebase.",
       instructions: [
         "Login using your registered Google Account (aroneefashion@gmail.com).",
         "Add, update, or instantly delete product listings directly in cloud storage.",
@@ -311,7 +312,7 @@ export default function WalkthroughGuide() {
             <span>Interactive Guide</span>
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-brand">
-            How to Use Aronee Wears
+            How to Use Aronee's Wears
           </h2>
           <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
             Learn the complete process from discovering the catalog to placing order sheets or managing database inventory.
@@ -321,10 +322,12 @@ export default function WalkthroughGuide() {
         {/* Progress Tracker Dots */}
         <div className="flex items-center space-x-1 bg-gray-50 p-2 rounded-full border border-gray-150">
           {steps.map((_, idx) => (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
               key={idx}
               onClick={() => setActiveStep(idx)}
-              className={`w-8 h-2.5 rounded-full transition-all text-[8px] font-mono font-bold flex items-center justify-center leading-none ${
+              className={`w-8 h-2.5 rounded-full transition-all text-[8px] font-mono font-bold flex items-center justify-center leading-none cursor-pointer ${
                 idx === activeStep 
                   ? 'bg-purple-brand text-white w-10 shadow-xs' 
                   : 'bg-gray-200 text-slate-400 hover:bg-gray-300'
@@ -332,7 +335,7 @@ export default function WalkthroughGuide() {
               title={`Skip to Step ${idx+1}`}
             >
               {idx + 1}
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>
@@ -388,7 +391,9 @@ export default function WalkthroughGuide() {
 
           {/* Action buttons footer */}
           <div className="flex items-center justify-between border-t border-gray-100 pt-6">
-            <button
+            <motion.button
+              whileHover={activeStep !== 0 ? { scale: 1.05, x: -2 } : {}}
+              whileTap={activeStep !== 0 ? { scale: 0.95 } : {}}
               onClick={handleBack}
               disabled={activeStep === 0}
               className={`flex items-center space-x-1.5 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all ${
@@ -399,9 +404,11 @@ export default function WalkthroughGuide() {
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={activeStep !== steps.length - 1 ? { scale: 1.05, x: 2 } : {}}
+              whileTap={activeStep !== steps.length - 1 ? { scale: 0.95 } : {}}
               onClick={handleNext}
               disabled={activeStep === steps.length - 1}
               className={`flex items-center space-x-1.5 px-5 py-2.5 rounded-full font-bold uppercase tracking-widest transition-all text-xs ${
@@ -412,7 +419,7 @@ export default function WalkthroughGuide() {
             >
               <span>Next</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </motion.button>
           </div>
         </div>
 

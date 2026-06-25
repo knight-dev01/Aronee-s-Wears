@@ -12,6 +12,7 @@ interface HomeViewProps {
   onSelectProduct: (productId: string) => void;
   onAddToCart: (product: Product, size?: string) => void;
   whatsappNumber: string;
+  onShowToast?: (message: string) => void;
 }
 
 export default function HomeView({
@@ -20,7 +21,8 @@ export default function HomeView({
   onViewChange,
   onSelectProduct,
   onAddToCart,
-  whatsappNumber
+  whatsappNumber,
+  onShowToast
 }: HomeViewProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -62,17 +64,44 @@ export default function HomeView({
   };
 
   // Filter products
-  const featuredProducts = products.filter(p => p.featured && p.status === 'active').slice(0, 4);
+  const featuredProducts = products.filter(p => p.featured && (p.status === 'active' || p.status === 'out_of_stock')).slice(0, 4);
   const newArrivals = [...products]
-    .filter(p => p.status === 'active')
+    .filter(p => p.status === 'active' || p.status === 'out_of_stock')
     .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis())
     .slice(0, 4);
 
   // Fallback if collections are empty yet (while loading/seeding)
   const isProductsEmpty = products.length === 0;
 
-  const handleCTAClick = () => {
-    const text = encodeURIComponent("Hello Aronee Wears, I am browsing your e-commerce website and would like to order from your boutique! Please guide me on payment and delivery details.");
+  const handleCTAClick = async () => {
+    const rawText = "Hello Aronee's Wears, I am browsing your e-commerce website and would like to order from your boutique! Please guide me on payment and delivery details.";
+    
+    try {
+      await navigator.clipboard.writeText(rawText);
+      if (onShowToast) {
+        onShowToast('Inquiry message copied to clipboard! Opening WhatsApp...');
+      }
+    } catch (clipboardErr) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = rawText;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (onShowToast) {
+          onShowToast('Inquiry message copied! Opening WhatsApp...');
+        }
+      } catch (fallbackErr) {
+        console.error('Failed to copy to clipboard', fallbackErr);
+      }
+    }
+
+    const text = encodeURIComponent(rawText);
     window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${text}`, '_blank');
   };
 
@@ -113,22 +142,28 @@ export default function HomeView({
                     {slide.subtitle}
                   </p>
                   <div className="pt-6 flex flex-wrap gap-4">
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.03, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => onViewChange('shop')}
-                      className="bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-3.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 transition-all cursor-pointer flex items-center space-x-2"
+                      className="bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-3.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 cursor-pointer flex items-center space-x-2"
                     >
                       <span>Shop Now</span>
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                    <button
+                      <motion.span whileHover={{ x: 2, y: -2 }} transition={{ type: 'spring', stiffness: 400, damping: 10 }}>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </motion.span>
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.03, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         const categoriesEl = document.getElementById('featured-categories-section');
                         categoriesEl?.scrollIntoView({ behavior: 'smooth' });
                       }}
-                      className="bg-white/10 hover:bg-white/20 text-white font-bold text-sm tracking-widest uppercase py-3.5 px-8 rounded-full border border-white/20 transition-all cursor-pointer"
+                      className="bg-white/10 hover:bg-white/20 text-white font-bold text-sm tracking-widest uppercase py-3.5 px-8 rounded-full border border-white/20 cursor-pointer"
                     >
                       Browse Categories
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
               </div>
@@ -137,23 +172,28 @@ export default function HomeView({
         ))}
 
         {/* Carousel Navigation Arrows */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1, x: -2 }}
+          whileTap={{ scale: 0.9 }}
           onClick={handlePrevSlide}
           className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-white/10 hover:bg-white/25 border border-white/10 text-white transition-all cursor-pointer hidden sm:block"
         >
           <ArrowLeft className="w-5 h-5" />
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1, x: 2 }}
+          whileTap={{ scale: 0.9 }}
           onClick={handleNextSlide}
           className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-white/10 hover:bg-white/25 border border-white/10 text-white transition-all cursor-pointer hidden sm:block"
         >
           <ArrowRight className="w-5 h-5" />
-        </button>
+        </motion.button>
 
         {/* Carousel Indicators */}
         <div className="absolute bottom-6 left-0 right-0 z-30 flex justify-center space-x-2.5">
           {heroSlides.map((_, idx) => (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.2 }}
               key={idx}
               onClick={() => setCurrentSlide(idx)}
               className={`w-3.5 h-1.5 rounded-full transition-all ${
@@ -218,13 +258,17 @@ export default function HomeView({
               Hot off the workshop! Just landed item additions.
             </p>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => onViewChange('shop')}
-            className="text-xs sm:text-sm font-bold text-purple-brand hover:text-opacity-80 flex items-center space-x-1 uppercase tracking-wider cursor-pointer"
+            className="text-xs sm:text-sm font-bold text-purple-brand hover:text-opacity-80 flex items-center space-x-1 uppercase tracking-wider cursor-pointer group"
           >
             <span>See All Products</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+            <motion.span whileHover={{ x: 3 }} transition={{ type: 'spring', stiffness: 400, damping: 10 }}>
+              <ArrowRight className="w-4 h-4" />
+            </motion.span>
+          </motion.button>
         </div>
 
         {isProductsEmpty ? (
@@ -236,10 +280,10 @@ export default function HomeView({
             {newArrivals.map((product) => {
               const catName = categories.find(c => c.id === product.category)?.name || 'Wears';
               
-              // Calculate if "Just in" (last 7 days)
+              // Calculate if "Just in" (last 1 hour)
               const now = Date.now();
               const createdDate = product.createdAt?.toMillis() || 0;
-              const isRecent = now - createdDate < 7 * 24 * 60 * 60 * 1000;
+              const isRecent = now - createdDate < 1 * 60 * 60 * 1000;
               
               return (
                 <div
@@ -338,7 +382,7 @@ export default function HomeView({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-brand">
-              Why Lagos Shops Aronee Wears
+              Why Lagos Shops Aronee's Wears
             </h2>
             <p className="text-xs sm:text-sm text-slate-brand/60 font-medium">
               We stand out in premium wears standards and dedicated customer delivery.
@@ -446,9 +490,13 @@ export default function HomeView({
                       <span className="text-xs sm:text-sm font-extrabold text-slate-brand font-mono">
                         &#8358; {product.price.toLocaleString()}
                       </span>
-                      <button className="text-[10px] font-bold border border-purple-brand/20 text-purple-brand py-1 px-2.5 rounded-full hover:bg-purple-brand hover:text-white transition-colors cursor-pointer">
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="text-[10px] font-bold border border-purple-brand/20 text-purple-brand py-1 px-2.5 rounded-full hover:bg-purple-brand hover:text-white transition-colors cursor-pointer"
+                      >
                         Shop Now
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </div>
@@ -511,13 +559,20 @@ export default function HomeView({
               No long checkout structures. Place custom orders instantly via WhatsApp and get premium home delivery across Lagos locations!
             </p>
             <div className="pt-4">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleCTAClick}
-                className="bg-white text-purple-brand font-bold text-sm tracking-widest uppercase py-4 px-10 rounded-full hover:bg-gray-100 transition-all shadow-md transform hover:-translate-y-0.5 cursor-pointer inline-flex items-center space-x-2.5"
+                className="bg-white text-purple-brand font-bold text-sm tracking-widest uppercase py-4 px-10 rounded-full shadow-md cursor-pointer inline-flex items-center space-x-2.5 group"
               >
-                <MessageCircle className="w-5 h-5 fill-purple-brand stroke-none" />
+                <motion.span
+                  animate={{ rotate: [0, 10, -10, 10, 0] }}
+                  transition={{ repeat: Infinity, repeatDelay: 3, duration: 0.5 }}
+                >
+                  <MessageCircle className="w-5 h-5 fill-purple-brand stroke-none" />
+                </motion.span>
                 <span>Chat & Order on WhatsApp</span>
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

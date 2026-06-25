@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight, Truck, Info, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight, Truck, Info, Clock, Loader2, AlertCircle } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Product, Category, StoreSettings } from '../types';
+import { motion } from 'motion/react';
 
 interface ProductDetailViewProps {
   product: Product;
@@ -13,6 +14,7 @@ interface ProductDetailViewProps {
   onSelectProduct: (productId: string) => void;
   whatsappNumber: string;
   onAddToCart: (product: Product, size: string) => void;
+  onShowToast?: (message: string) => void;
 }
 
 export default function ProductDetailView({
@@ -23,7 +25,8 @@ export default function ProductDetailView({
   onBack,
   onSelectProduct,
   whatsappNumber,
-  onAddToCart
+  onAddToCart,
+  onShowToast
 }: ProductDetailViewProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -49,8 +52,23 @@ export default function ProductDetailView({
 
   // Filter related products
   const relatedProducts = allProducts
-    .filter(p => p.category === product.category && p.id !== product.id && p.status === 'active')
+    .filter(p => p.category === product.category && p.id !== product.id && (p.status === 'active' || p.status === 'out_of_stock'))
     .slice(0, 4);
+
+  const handleOrderInitiation = () => {
+    // Validation
+    if (!product.stock || product.status === 'out_of_stock') return;
+    
+    // Warn if non-bag item has no size selected
+    if (!isBags && !selectedSize) {
+      setErrorFeedback("Please select your size before ordering!");
+      setTimeout(() => setErrorFeedback(null), 3000);
+      return;
+    }
+
+    setErrorFeedback(null);
+    setShowDeliveryInfo(true);
+  };
 
   const handleWhatsAppOrder = async () => {
     // Validation
@@ -86,10 +104,10 @@ export default function ProductDetailView({
         stock: increment(-1)
       });
 
-      // 3. Open WhatsApp
+      // 3. Copy message to clipboard and Open WhatsApp
       const formattingPrice = product.price.toLocaleString();
       const sizeLine = isBags ? '' : `\nSize: ${selectedSize}`;
-      const text = `Hello Aronee Wears,
+      const text = `Hello Aronee's Wears,
 
 I would like to order:
 
@@ -98,15 +116,45 @@ Price: ₦${formattingPrice}
 
 Please provide payment details to confirm my order.`;
 
+      try {
+        await navigator.clipboard.writeText(text);
+        if (onShowToast) {
+          onShowToast('Order details copied to clipboard! Opening WhatsApp...');
+        }
+      } catch (clipboardErr) {
+        try {
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+          textArea.style.position = "fixed";
+          textArea.style.top = "0";
+          textArea.style.left = "0";
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          if (onShowToast) {
+            onShowToast('Order details copied! Opening WhatsApp...');
+          }
+        } catch (fallbackErr) {
+          console.error('Failed to copy to clipboard', fallbackErr);
+        }
+      }
+
       const encodedText = encodeURIComponent(text);
       window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${encodedText}`, '_blank');
       
-      // 4. Show Delivery Info
-      setShowDeliveryInfo(true);
+      // 4. Close Delivery Info
+      setShowDeliveryInfo(false);
     } catch (err) {
       console.error(err);
       setErrorFeedback('Failed to process reservation. Please check your connection and try again.');
       setTimeout(() => setErrorFeedback(null), 5000);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, 'reservations_or_products');
+      } catch (logErr) {
+        // Detailed error logged successfully
+      }
     } finally {
       setIsReserving(false);
     }
@@ -127,13 +175,15 @@ Please provide payment details to confirm my order.`;
     <div id="product-detail-view" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       
       {/* Back button link */}
-      <button
+      <motion.button
+        whileHover={{ x: -4 }}
+        whileTap={{ scale: 0.95 }}
         onClick={onBack}
         className="mb-8 font-sans font-bold text-xs sm:text-sm text-slate-brand hover:text-purple-brand flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer py-1"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>Back to Collections</span>
-      </button>
+      </motion.button>
 
       {/* Main product presentation block */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-start">
@@ -264,27 +314,26 @@ Please provide payment details to confirm my order.`;
               <div className="flex flex-col sm:flex-row gap-3.5">
                 
                 {/* 1. Direct WhatsApp Purchase (Primary CTA) */}
-                <button
-                  onClick={handleWhatsAppOrder}
-                  disabled={isReserving}
-                  className="flex-1 bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-4.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 transition-all cursor-pointer flex items-center justify-center space-x-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleOrderInitiation}
+                  className="flex-1 bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-4.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 cursor-pointer flex items-center justify-center space-x-2.5"
                 >
-                  {isReserving ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <MessageSquare className="w-5 h-5 fill-white stroke-none" />
-                  )}
-                  <span>{isReserving ? 'Reserving Stock...' : 'Order via WhatsApp Now'}</span>
-                </button>
+                  <MessageSquare className="w-5 h-5 fill-white stroke-none" />
+                  <span>Order via WhatsApp Now</span>
+                </motion.button>
 
                 {/* 2. Add to Order Draft/Cart */}
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={handleAddToCartClick}
-                  className="bg-gray-brand hover:bg-purple-brand/5 border-2 border-gray-200 hover:border-purple-brand text-slate-brand font-bold text-sm tracking-widest uppercase py-4 px-8 rounded-full transition-all cursor-pointer flex items-center justify-center space-x-2.5"
+                  className="bg-gray-brand hover:bg-purple-brand/5 border-2 border-gray-200 hover:border-purple-brand text-slate-brand font-bold text-sm tracking-widest uppercase py-4 px-8 rounded-full cursor-pointer flex items-center justify-center space-x-2.5"
                 >
                   <ShoppingBag className="w-5 h-5" />
                   <span>Add to Cart</span>
-                </button>
+                </motion.button>
 
               </div>
             )}
@@ -419,10 +468,21 @@ Please provide payment details to confirm my order.`;
               </div>
 
               <button 
-                onClick={() => setShowDeliveryInfo(false)}
-                className="w-full bg-slate-brand text-white font-bold text-xs uppercase tracking-widest py-4 rounded-xl shadow-lg hover:bg-opacity-95 transition-all"
+                onClick={handleWhatsAppOrder}
+                disabled={isReserving}
+                className="w-full bg-purple-brand text-white font-bold text-xs uppercase tracking-widest py-4 rounded-xl shadow-lg hover:bg-opacity-95 transition-all flex items-center justify-center gap-2"
               >
-                I Understand
+                {isReserving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Reserving Stock...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="w-4 h-4 fill-white stroke-none" />
+                    <span>Confirm & Open WhatsApp</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

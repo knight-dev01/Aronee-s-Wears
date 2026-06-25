@@ -63,7 +63,10 @@ export default function ShopView({
       if (stockFilter === 'instock') matchesStock = product.stock > 0 && product.status !== 'out_of_stock';
       else if (stockFilter === 'outofstock') matchesStock = product.stock === 0 || product.status === 'out_of_stock';
 
-      return matchesSearch && matchesCategory && matchesPrice && matchesStock;
+      // 0. Status filter (Defensive)
+      const isVisible = product.status === 'active' || product.status === 'out_of_stock';
+      
+      return matchesSearch && matchesCategory && matchesPrice && matchesStock && isVisible;
     })
     // Sorting Logic
     .sort((a, b) => {
@@ -91,13 +94,15 @@ export default function ShopView({
       
       {/* Title Header */}
       <div className="mb-8 space-y-4">
-        <button 
+        <motion.button 
+          whileHover={{ x: -4 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => onViewChange('home')}
-          className="flex items-center gap-2 text-purple-brand font-bold text-xs uppercase tracking-widest hover:translate-x-[-4px] transition-transform group"
+          className="flex items-center gap-2 text-purple-brand font-bold text-xs uppercase tracking-widest cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Home</span>
-        </button>
+        </motion.button>
         
         <div className="space-y-1">
           <h1 className="text-3xl sm:text-4xl font-extrabold font-display tracking-tight text-slate-brand">
@@ -163,20 +168,26 @@ export default function ShopView({
             <h3 className="font-display font-semibold text-sm tracking-widest uppercase text-slate-brand">
               Filter Options
             </h3>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleResetFilters}
-              className="text-xs text-purple-brand hover:text-opacity-80 font-bold flex items-center space-x-1 uppercase tracking-wider cursor-pointer"
+              className="text-xs text-purple-brand hover:text-opacity-80 font-bold flex items-center space-x-1 uppercase tracking-wider cursor-pointer group"
             >
-              <RefreshCw className="w-3 h-3" />
+              <motion.span whileHover={{ rotate: 180 }} transition={{ duration: 0.4 }}>
+                <RefreshCw className="w-3 h-3" />
+              </motion.span>
               <span>Reset</span>
-            </button>
+            </motion.button>
           </div>
 
           {/* Categories select list */}
           <div className="space-y-2.5">
             <h4 className="font-semibold text-xs sm:text-sm text-slate-brand">Category</h4>
             <div className="space-y-1.5 flex flex-col">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedCategory('all')}
                 className={`text-left text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all uppercase tracking-wider ${
                   selectedCategory === 'all'
@@ -185,9 +196,11 @@ export default function ShopView({
                 }`}
               >
                 All Categories
-              </button>
+              </motion.button>
               {categories.map((cat) => (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`text-left text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all uppercase tracking-wider flex justify-between items-center ${
@@ -200,7 +213,7 @@ export default function ShopView({
                   <span className={`text-[9px] font-mono font-bold px-1.5 rounded-full ${selectedCategory === cat.id ? 'bg-white/20 text-white' : 'bg-slate-brand/5 text-slate-brand/40'}`}>
                     {cat.productCount}
                   </span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -351,10 +364,10 @@ export default function ShopView({
               {filteredProducts.map((product) => {
                 const catName = categories.find(c => c.id === product.category)?.name || 'Wears';
                 
-                // Calculate if "Just in" (last 7 days)
+                // Calculate if "Just in" (last 1 hour)
                 const now = Date.now();
                 const createdDate = product.createdAt?.toMillis() || 0;
-                const isRecent = now - createdDate < 7 * 24 * 60 * 60 * 1000;
+                const isRecent = now - createdDate < 1 * 60 * 60 * 1000;
 
                 return (
                   <div

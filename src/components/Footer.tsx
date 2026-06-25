@@ -26,9 +26,14 @@ export default function Footer({
               <div className="w-9 h-9 rounded-full bg-purple-brand flex items-center justify-center">
                 <span className="text-white font-bold text-lg">A</span>
               </div>
-              <span className="font-display font-bold text-lg tracking-wider text-white">
-                ARONEE WEARS
-              </span>
+              <div className="flex flex-col">
+                <span className="font-display font-bold text-lg tracking-wider text-white leading-none">
+                  ARONEE WEARS
+                </span>
+                <span className="text-[9px] tracking-[0.1em] text-purple-brand font-bold uppercase mt-1">
+                  Style that defines you
+                </span>
+              </div>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
               Step Into Style. Lagos' leading destination for high-fashion sneakers, premium Heels, handmade sandals, and custom beauty accessories.
