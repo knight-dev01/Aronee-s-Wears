@@ -1072,33 +1072,17 @@ export default function AdminView({
       {isBulkUploadOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex items-center justify-center animate-fade-in font-sans">
           <div className="bg-white w-full h-full shadow-2xl overflow-hidden flex flex-col animate-scale-in">
-            <div className="bg-white border-b border-gray-100 px-8 py-6 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-brand text-white rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-brand font-display uppercase tracking-widest text-sm">Professional Bulk Indexing</h3>
-                  <p className="text-[10px] text-slate-brand/40 font-bold uppercase">Multi-product staging environment</p>
-                </div>
+            <div className="flex-1 overflow-y-auto bg-gray-brand/30 p-0 sm:p-4 lg:p-8">
+              <div className="max-w-7xl mx-auto">
+                <BulkUpload 
+                  categories={categories} 
+                  onSuccess={async () => {
+                    await onRefreshData();
+                    setIsBulkUploadOpen(false);
+                  }} 
+                  onClose={() => setIsBulkUploadOpen(false)}
+                />
               </div>
-              <button 
-                onClick={() => setIsBulkUploadOpen(false)} 
-                className="p-2 hover:bg-red-50 hover:text-red-600 rounded-full transition-all text-slate-brand/30 cursor-pointer"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto bg-gray-brand/30">
-              <BulkUpload 
-                categories={categories} 
-                onSuccess={async () => {
-                  await onRefreshData();
-                  setIsBulkUploadOpen(false);
-                }} 
-                onClose={() => setIsBulkUploadOpen(false)}
-              />
             </div>
           </div>
         </div>

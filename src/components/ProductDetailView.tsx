@@ -31,6 +31,7 @@ export default function ProductDetailView({
   const [addFeedback, setAddFeedback] = useState(false);
   const [isReserving, setIsReserving] = useState(false);
   const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
+  const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
 
   // Generate size choices based on category type
   const isWomens = ['heels', 'womens-wears'].includes(product.category);
@@ -57,11 +58,13 @@ export default function ProductDetailView({
     
     // Warn if non-bag item has no size selected
     if (!isBags && !selectedSize) {
-      alert("Please select your size before ordering!");
+      setErrorFeedback("Please select your size before ordering!");
+      setTimeout(() => setErrorFeedback(null), 3000);
       return;
     }
 
     setIsReserving(true);
+    setErrorFeedback(null);
 
     try {
       // 1. Create Reservation (valid for 30 mins)
@@ -102,7 +105,8 @@ Please provide payment details to confirm my order.`;
       setShowDeliveryInfo(true);
     } catch (err) {
       console.error(err);
-      alert('Failed to process reservation. Please try again.');
+      setErrorFeedback('Failed to process reservation. Please check your connection and try again.');
+      setTimeout(() => setErrorFeedback(null), 5000);
     } finally {
       setIsReserving(false);
     }
@@ -110,7 +114,8 @@ Please provide payment details to confirm my order.`;
 
   const handleAddToCartClick = () => {
     if (!isBags && !selectedSize) {
-      alert("Please select your custom size first!");
+      setErrorFeedback("Please select your custom size first!");
+      setTimeout(() => setErrorFeedback(null), 3000);
       return;
     }
     onAddToCart(product, selectedSize || 'One Size');
@@ -288,6 +293,13 @@ Please provide payment details to confirm my order.`;
               <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 p-3.5 rounded-r-xl flex items-center space-x-2.5 text-xs animate-fade-in">
                 <CheckCircle className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
                 <span className="font-semibold">Successfully added product to your custom WhatsApp Order Draft list! See navbar.</span>
+              </div>
+            )}
+
+            {errorFeedback && (
+              <div className="bg-red-50 text-red-800 border-l-4 border-red-500 p-3.5 rounded-r-xl flex items-center space-x-2.5 text-xs animate-fade-in">
+                <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
+                <span className="font-semibold">{errorFeedback}</span>
               </div>
             )}
             

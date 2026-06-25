@@ -115,7 +115,14 @@ service cloud.firestore {
       allow list: if isAdmin() || (resource.data.status == 'active' || resource.data.status == 'out_of_stock');
       
       allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) && incoming().createdAt == request.time;
-      allow update: if isAdmin() && isValidProduct(incoming()) && incoming().updatedAt == request.time && incoming().createdAt == existing().createdAt;
+      
+      // Allow authenticated users to reserve stock (decrementing)
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        incoming().stock == existing().stock - 1 &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['stock'])
+      );
+      
       allow delete: if isAdmin();
     }
     
@@ -134,7 +141,7 @@ service cloud.firestore {
     // Reservations Collection
     match /reservations/{reservationId} {
       allow read: if isAdmin();
-      allow create: if isValidId(reservationId) && isValidReservation(incoming()) && incoming().createdAt == request.time;
+      allow create: if isSignedIn() && isValidReservation(incoming()) && incoming().createdAt == request.time;
       allow update: if isAdmin() && isValidReservation(incoming());
       allow delete: if isAdmin();
     }

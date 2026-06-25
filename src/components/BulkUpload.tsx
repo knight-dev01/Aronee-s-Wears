@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Database, X, Check, AlertCircle, FileText, Save, Info, Table, Plus, Camera, Image, RefreshCw, Layers, Trash2, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, Database, X, Check, AlertCircle, FileText, Save, Info, Table, Plus, Camera, Image, RefreshCw, Layers, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { writeBatch, doc, collection, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as XLSX from 'xlsx';
 import imageCompression from 'browser-image-compression';
 import { db, storage } from '../firebase';
 import { Product, Category } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface BulkUploadProps {
   categories: Category[];
@@ -22,6 +23,7 @@ interface StagedProduct {
   stock: number;
   status: 'active' | 'draft' | 'out_of_stock';
   images: string[];
+  localFiles: File[]; // For staging local files before upload
   featured: boolean;
   errors: string[];
 }
@@ -29,8 +31,9 @@ interface StagedProduct {
 export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploadProps) {
   const [stagedData, setStagedData] = useState<StagedProduct[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' });
+  const [isStagingPhotos, setIsStagingPhotos] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info' | ''; message: string }>({ type: '', message: '' });
   const [inputText, setInputText] = useState('');
   
   // Bulk apply state
@@ -38,9 +41,100 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
   const [bulkCategory, setBulkCategory] = useState<string>('');
   const [bulkStock, setBulkStock] = useState<string>('');
   const [bulkNamePrefix, setBulkNamePrefix] = useState<string>('');
+  const [isBulkApplyOpen, setIsBulkApplyOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const stagedDataRef = useRef(stagedData);
+
+  // Keep ref in sync for cleanup
+  useEffect(() => {
+    stagedDataRef.current = stagedData;
+  }, [stagedData]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files).filter((f: any) => f.type.startsWith('image/'));
+    if (files.length > 0) {
+      await processPhotos(files as unknown as FileList);
+    }
+  };
+
+  // Shared photo processing logic
+  const processPhotos = async (files: FileList) => {
+    setIsStagingPhotos(true);
+    setStatus({ type: 'info', message: 'Processing and staging photos locally...' });
+
+    const newItems: StagedProduct[] = [];
+    const compressionOptions = {
+      maxSizeMB: 0.8,
+      maxWidthOrHeight: 1200,
+      useWebWorker: true
+    };
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 1. Compress
+        const compressedFile = await imageCompression(file, compressionOptions);
+        
+        // 2. Create local preview URL
+        const localPreviewUrl = URL.createObjectURL(compressedFile);
+
+        // 3. Stage item
+        const nameWithoutExt = file.name.split('.').slice(0, -1).join('.') || 'New Item';
+        const tempId = Math.random().toString(36).substr(2, 9);
+        
+        const newItem: StagedProduct = {
+          tempId,
+          name: bulkNamePrefix ? `${bulkNamePrefix} ${nameWithoutExt}` : nameWithoutExt,
+          description: '',
+          price: bulkPrice ? Number(bulkPrice) : 0,
+          category: bulkCategory || categories[0]?.id || '',
+          stock: Number(bulkStock) || 0,
+          status: 'active',
+          images: [localPreviewUrl],
+          localFiles: [compressedFile],
+          featured: false,
+          errors: []
+        };
+        newItems.push({ ...newItem, errors: validateItem(newItem) });
+      }
+
+      setStagedData(prev => [...prev, ...newItems]);
+      setStatus({ type: 'success', message: `Locally staged ${files.length} items. Tap "Save to Store" to publish.` });
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', message: 'Failed to process some photos.' });
+    } finally {
+      setIsStagingPhotos(false);
+    }
+  };
+  
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      stagedDataRef.current.forEach(item => {
+        item.images.forEach(url => {
+          if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        });
+      });
+    };
+  }, []);
 
   const validateItem = (item: Partial<StagedProduct>): string[] => {
     const errors: string[] = [];
@@ -70,56 +164,8 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    setIsUploadingPhotos(true);
-    setStatus({ type: '', message: 'Compressing and uploading photos...' });
-
-    const newItems: StagedProduct[] = [];
-    const compressionOptions = {
-      maxSizeMB: 0.8,
-      maxWidthOrHeight: 1280,
-      useWebWorker: true
-    };
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // 1. Compress
-        const compressedFile = await imageCompression(file, compressionOptions);
-        
-        // 2. Upload to Storage
-        const storageRef = ref(storage, `products/bulk/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, compressedFile);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-
-        // 3. Stage item
-        const nameWithoutExt = file.name.split('.').slice(0, -1).join('.') || 'New Item';
-        const newItem: StagedProduct = {
-          tempId: Math.random().toString(36).substring(7),
-          name: nameWithoutExt,
-          description: '',
-          price: Number(bulkPrice) || 0,
-          category: bulkCategory || categories[0]?.id || '',
-          stock: Number(bulkStock) || 0,
-          status: 'active',
-          images: [downloadUrl],
-          featured: false,
-          errors: []
-        };
-        newItem.errors = validateItem(newItem);
-        newItems.push(newItem);
-      }
-
-      setStagedData(prev => [...prev, ...newItems]);
-      setStatus({ type: 'success', message: `Successfully uploaded and staged ${files.length} photos.` });
-    } catch (err) {
-      console.error(err);
-      setStatus({ type: 'error', message: 'Photo upload failed. Check your connection.' });
-    } finally {
-      setIsUploadingPhotos(false);
-      if (photoInputRef.current) photoInputRef.current.value = '';
-    }
+    await processPhotos(files);
+    if (photoInputRef.current) photoInputRef.current.value = '';
   };
 
   const processRows = (rows: any[]) => {
@@ -132,6 +178,7 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
       stock: Number(item.stock || item.Stock) || 0,
       status: (item.status || item.Status || 'active').toLowerCase() as any,
       images: item.images ? (typeof item.images === 'string' ? item.images.split(',').map((s: string) => s.trim()) : [item.images]) : ['https://images.unsplash.com/photo-1542291026-7eec264c27ff'],
+      localFiles: [],
       featured: !!(item.featured || item.Featured),
       errors: []
     })).map(item => ({ ...item, errors: validateItem(item) }));
@@ -150,6 +197,7 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
       stock: 0,
       status: 'active',
       images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff'],
+      localFiles: [],
       featured: false,
       errors: []
     };
@@ -201,7 +249,15 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
   };
 
   const removeStagedItem = (tempId: string) => {
-    setStagedData(prev => prev.filter(i => i.tempId !== tempId));
+    setStagedData(prev => {
+      const item = prev.find(i => i.tempId === tempId);
+      if (item && item.localFiles.length > 0) {
+        item.images.forEach(url => {
+          if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        });
+      }
+      return prev.filter(i => i.tempId !== tempId);
+    });
   };
 
   const handleCommitUpload = async () => {
@@ -212,11 +268,35 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
     }
 
     setIsProcessing(true);
+    setUploadProgress(0);
     try {
+      const finalItems = [];
+
+      // 1. Sequential Cloud Upload for local staged files
+      for (let i = 0; i < stagedData.length; i++) {
+        const item = stagedData[i];
+        let finalImageUrls = [...item.images];
+
+        if (item.localFiles.length > 0) {
+          const uploadedUrls = [];
+          for (const file of item.localFiles) {
+            const storageRef = ref(storage, `products/bulk/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(snapshot.ref);
+            uploadedUrls.push(downloadUrl);
+          }
+          finalImageUrls = uploadedUrls;
+        }
+        
+        finalItems.push({ ...item, images: finalImageUrls });
+        setUploadProgress(((i + 1) / stagedData.length) * 100);
+      }
+
+      // 2. Firestore Batch Write
       const batch = writeBatch(db);
       const productsCol = collection(db, 'products');
 
-      stagedData.forEach(item => {
+      finalItems.forEach(item => {
         const newDocRef = doc(productsCol);
         batch.set(newDocRef, {
           name: item.name,
@@ -233,32 +313,31 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
       });
 
       await batch.commit();
-      setStatus({ type: 'success', message: `Successfully uploaded ${stagedData.length} items!` });
+      setStatus({ type: 'success', message: `Successfully published ${stagedData.length} items to cloud inventory!` });
       setStagedData([]);
       await onSuccess();
     } catch (err) {
       console.error(err);
-      setStatus({ type: 'error', message: 'Failed to upload batch. Check your connection.' });
+      setStatus({ type: 'error', message: 'Failed to upload batch. Check storage permissions and connection.' });
     } finally {
       setIsProcessing(false);
+      setUploadProgress(0);
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
       <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-6">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-center">
           <div>
             <h3 className="text-xl font-bold text-slate-brand font-display flex items-center gap-2">
               <Database className="w-5 h-5 text-purple-brand" />
               Inventory Power Ingress
             </h3>
-            <p className="text-xs text-slate-brand/60 font-medium">
-              Import multiple items at once using Excel, CSV, or JSON data formats.
-            </p>
+            <p className="text-[10px] text-slate-brand/40 font-bold uppercase tracking-widest mt-1">Bulk upload multiple products</p>
           </div>
           {onClose && (
-            <button onClick={onClose} className="p-2 text-slate-brand/40 hover:text-red-700">
+            <button onClick={onClose} className="p-2 text-slate-brand/40 hover:text-red-700 transition-colors">
               <X className="w-5 h-5" />
             </button>
           )}
@@ -273,169 +352,203 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="space-y-4">
-            <div className="bg-purple-brand/5 border border-dashed border-purple-brand/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-4 hover:border-purple-brand transition-colors cursor-pointer group" onClick={() => photoInputRef.current?.click()}>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <div 
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => photoInputRef.current?.click()}
+              className={`group relative overflow-hidden border-2 border-dashed rounded-3xl p-6 transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-4 ${
+                isDragging 
+                  ? 'border-purple-brand bg-purple-brand/5 scale-[0.99] shadow-inner' 
+                  : 'border-purple-brand/30 bg-purple-brand/5 hover:border-purple-brand hover:bg-gray-50'
+              }`}
+            >
               <input 
                 type="file" 
                 ref={photoInputRef} 
                 onChange={handlePhotoUpload} 
-                multiple
+                multiple 
                 accept="image/*" 
                 className="hidden" 
               />
-              <div className="w-14 h-14 bg-purple-brand text-white rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                {isUploadingPhotos ? <RefreshCw className="w-7 h-7 animate-spin" /> : <Camera className="w-7 h-7" />}
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                isDragging ? 'bg-purple-brand text-white scale-110 animate-pulse' : 'bg-purple-brand text-white group-hover:scale-110'
+              }`}>
+                {isStagingPhotos ? <RefreshCw className="w-7 h-7 animate-spin" /> : <Camera className="w-7 h-7" />}
               </div>
               <div className="space-y-1">
-                <p className="font-bold text-sm text-slate-brand">Bulk Upload Photos</p>
-                <p className="text-[10px] text-slate-brand/50 font-medium">Select multiple from gallery. Fast indexing!</p>
-              </div>
-            </div>
-
-            <div className="bg-gray-brand border border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-4 hover:border-purple-brand transition-colors cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                accept=".xlsx, .xls, .csv" 
-                className="hidden" 
-              />
-              <div className="w-12 h-12 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Table className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-bold text-xs text-slate-brand">Excel / CSV</p>
-                <p className="text-[9px] text-slate-brand/50 font-medium">Traditional sheet import</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="bg-slate-brand/5 border border-slate-brand/10 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Layers className="w-4 h-4 text-slate-brand" />
-                <p className="font-bold text-xs text-slate-brand uppercase tracking-wider">Bulk Apply Settings</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Category</label>
-                  <select
-                    value={bulkCategory}
-                    onChange={(e) => setBulkCategory(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
-                  >
-                    <option value="">Select...</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-[8px] text-slate-brand/40 font-bold uppercase tracking-tighter">* Individual categories can be changed per card.</p>
-                </div>
-                <div className="sm:col-span-2 pt-2">
-                  <button
-                    onClick={applyBulkToAll}
-                    disabled={!stagedData.length}
-                    className="w-full bg-slate-brand text-white text-[10px] font-bold py-2 rounded-xl hover:bg-opacity-90 transition-all disabled:opacity-30 flex items-center justify-center gap-2 uppercase tracking-widest"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Apply Bulk Settings to Staged Items
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Price (₦)</label>
-                  <input
-                    type="number"
-                    value={bulkPrice}
-                    onChange={(e) => setBulkPrice(e.target.value)}
-                    placeholder="9500"
-                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Stock</label>
-                  <input
-                    type="number"
-                    value={bulkStock}
-                    onChange={(e) => setBulkStock(e.target.value)}
-                    placeholder="10"
-                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Name Prefix</label>
-                  <input
-                    type="text"
-                    value={bulkNamePrefix}
-                    onChange={(e) => setBulkNamePrefix(e.target.value)}
-                    placeholder="New..."
-                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={applyBulkToAll}
-                disabled={stagedData.length === 0}
-                className="w-full bg-slate-brand text-white font-bold text-[10px] py-2.5 rounded-xl hover:bg-opacity-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest"
-              >
-                Apply to {stagedData.length} Staged Items
-              </button>
-            </div>
-            
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <div className="w-full border-t border-gray-100"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-3 text-slate-brand/30 font-bold uppercase tracking-widest text-[9px]">Manual Entry</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={addManualRow}
-                className="bg-purple-brand/10 text-purple-brand font-bold text-xs py-3 rounded-xl hover:bg-purple-brand/20 flex items-center justify-center gap-2 border border-purple-brand/20"
-              >
-                <Plus className="w-4 h-4" />
-                Add Single Row
-              </button>
-              <button
-                onClick={() => setStagedData([])}
-                disabled={stagedData.length === 0}
-                className="bg-red-50 text-red-600 font-bold text-xs py-3 rounded-xl hover:bg-red-100 flex items-center justify-center gap-2 border border-red-200 disabled:opacity-30"
-              >
-                <X className="w-4 h-4" />
-                Reset List
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gray-brand border border-gray-100 rounded-3xl p-5 flex flex-col space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white border border-gray-100 text-slate-brand rounded-lg flex items-center justify-center shadow-xs">
-                <Info className="w-4 h-4" />
-              </div>
-              <p className="font-bold text-[11px] text-slate-brand uppercase tracking-wider">Instructions</p>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="bg-white/60 rounded-xl p-3 space-y-1.5 border border-gray-100">
-                <p className="text-[10px] font-bold text-purple-brand">Pro Phone Workflow:</p>
-                <ul className="text-[9px] text-slate-brand/60 space-y-1 font-medium leading-tight">
-                  <li>1. Set **Price** and **Category** in Bulk Apply bar.</li>
-                  <li>2. Tap **Bulk Upload Photos** & select all new photos.</li>
-                  <li>3. Tap **Apply to Staged Items** to set details instantly.</li>
-                  <li>4. Scroll down, review names, then tap **Save to Store**.</li>
-                </ul>
-              </div>
-
-              <div className="bg-white/60 rounded-xl p-3 space-y-1.5 border border-gray-100">
-                <p className="text-[10px] font-bold text-slate-brand">Supported Formats:</p>
-                <p className="text-[9px] text-slate-brand/60 leading-tight">
-                  Photos (JPG/PNG), Excel (.xlsx), CSV, and raw JSON strings.
+                <p className="font-bold text-sm text-slate-brand">
+                  {isDragging ? 'Drop Photos Now' : 'Primary: Bulk Upload Photos'}
+                </p>
+                <p className="text-[10px] text-slate-brand/50 font-medium">
+                  Compress and stage multiple images instantly
                 </p>
               </div>
+              
+              {isDragging && (
+                <div className="absolute inset-0 bg-purple-brand/5 backdrop-blur-[1px] flex items-center justify-center">
+                  <div className="bg-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-purple-brand animate-bounce" />
+                    <span className="text-[10px] font-bold text-purple-brand uppercase tracking-widest">Ready to Stage</span>
+                  </div>
+                </div>
+              )}
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-brand border border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-2 hover:border-purple-brand transition-colors cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  accept=".xlsx, .xls, .csv" 
+                  className="hidden" 
+                />
+                <Table className="w-5 h-5 text-gray-500 group-hover:scale-110 transition-transform" />
+                <p className="font-bold text-[10px] text-slate-brand uppercase tracking-wider">Excel / CSV</p>
+              </div>
+              <div className="bg-gray-brand border border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-2 hover:border-purple-brand transition-colors cursor-pointer group" onClick={addManualRow}>
+                <Plus className="w-5 h-5 text-gray-500 group-hover:scale-110 transition-transform" />
+                <p className="font-bold text-[10px] text-slate-brand uppercase tracking-wider">Add Single</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 space-y-4">
+            <div className={`bg-slate-brand/5 border border-slate-brand/10 rounded-2xl transition-all duration-300 ${isBulkApplyOpen ? 'p-5' : 'p-3'}`}>
+              <button 
+                onClick={() => setIsBulkApplyOpen(!isBulkApplyOpen)}
+                className="flex items-center justify-between w-full group"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-white border border-gray-100 text-slate-brand rounded-lg flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-[11px] text-slate-brand uppercase tracking-wider text-left">Bulk Apply Settings</p>
+                    {!isBulkApplyOpen && (
+                      <p className="text-[9px] text-slate-brand/40 font-medium text-left">Quickly update price, category, or stock for all items</p>
+                    )}
+                  </div>
+                </div>
+                {isBulkApplyOpen ? <ChevronUp className="w-4 h-4 text-slate-brand/40" /> : <ChevronDown className="w-4 h-4 text-slate-brand/40" />}
+              </button>
+
+              <AnimatePresence>
+                {isBulkApplyOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid grid-cols-2 gap-3 pt-4">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Category</label>
+                        <select
+                          value={bulkCategory}
+                          onChange={(e) => setBulkCategory(e.target.value)}
+                          className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
+                        >
+                          <option value="">Select...</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Price (₦)</label>
+                        <input
+                          type="number"
+                          value={bulkPrice}
+                          onChange={(e) => setBulkPrice(e.target.value)}
+                          placeholder="9500"
+                          className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Stock</label>
+                        <input
+                          type="number"
+                          value={bulkStock}
+                          onChange={(e) => setBulkStock(e.target.value)}
+                          placeholder="10"
+                          className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-brand/50 uppercase">Name Prefix</label>
+                        <input
+                          type="text"
+                          value={bulkNamePrefix}
+                          onChange={(e) => setBulkNamePrefix(e.target.value)}
+                          placeholder="New..."
+                          className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-purple-brand"
+                        />
+                      </div>
+                      <div className="col-span-2 pt-2">
+                        <button
+                          onClick={applyBulkToAll}
+                          disabled={!stagedData.length}
+                          className="w-full bg-slate-brand text-white text-[10px] font-bold py-3 rounded-xl hover:bg-opacity-90 transition-all disabled:opacity-30 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Apply to {stagedData.length} Items
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="bg-gray-brand border border-gray-100 rounded-2xl p-4 flex flex-col space-y-3">
+              <button 
+                onClick={() => setIsGuideOpen(!isGuideOpen)}
+                className="flex items-center justify-between w-full group"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-white border border-gray-100 text-slate-brand rounded-lg flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform">
+                    <Info className="w-4 h-4" />
+                  </div>
+                  <p className="font-bold text-[11px] text-slate-brand uppercase tracking-wider">Functional Guide</p>
+                </div>
+                {isGuideOpen ? <ChevronUp className="w-4 h-4 text-slate-brand/40" /> : <ChevronDown className="w-4 h-4 text-slate-brand/40" />}
+              </button>
+              
+              <AnimatePresence>
+                {isGuideOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2 pt-2">
+                      <div className="bg-white/60 rounded-xl p-2.5 border border-gray-100">
+                        <p className="text-[9px] text-slate-brand/60 leading-tight font-medium">
+                          1. **Bulk Photos**: Compress & stage dozens instantly.<br/>
+                          2. **Bulk Apply**: Set shared Category/Price with one tap.<br/>
+                          3. **Cloud Save**: Batch-upload and publish all records.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {stagedData.length > 0 && (
+              <button
+                onClick={() => setStagedData([])}
+                className="w-full bg-red-50 text-red-600 font-bold text-[10px] py-2.5 rounded-xl hover:bg-red-100 flex items-center justify-center gap-2 border border-red-200 transition-colors uppercase tracking-widest"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear Staged List
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -449,143 +562,155 @@ export default function BulkUpload({ categories, onSuccess, onClose }: BulkUploa
               </h4>
               <p className="text-[10px] text-slate-brand/40 font-bold uppercase">Review and refine details before final publication</p>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 w-full sm:w-auto items-center">
+              {isProcessing && (
+                <div className="hidden sm:flex flex-col items-end mr-4">
+                  <span className="text-[9px] font-bold text-purple-brand uppercase tracking-widest">Uploading to Cloud</span>
+                  <div className="w-32 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                    <div className="h-full bg-purple-brand transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
               <button
                 disabled={isProcessing}
                 onClick={handleCommitUpload}
                 className="flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-[10px] py-3 px-8 rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 uppercase tracking-widest"
               >
                 {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save to Store
+                {isProcessing ? `Uploading ${Math.round(uploadProgress)}%` : 'Save to Store'}
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+          <div className="space-y-3 pb-24">
+            {/* Table Header (Desktop Only) */}
+            <div className="hidden lg:grid lg:grid-cols-[80px_1fr_120px_100px_100px_100px_40px] gap-4 px-6 py-2 text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest border-b border-gray-50">
+              <div>Preview</div>
+              <div>Product Details</div>
+              <div>Category</div>
+              <div>Price (₦)</div>
+              <div>Stock</div>
+              <div>Status</div>
+              <div className="text-center">Del</div>
+            </div>
+
             {stagedData.map((item) => (
               <div 
                 key={item.tempId} 
-                className={`bg-white rounded-[32px] p-5 shadow-sm border transition-all duration-300 hover:shadow-md relative group flex flex-col ${
-                  item.errors.length > 0 ? 'border-red-200 bg-red-50/10' : 'border-gray-100'
+                className={`bg-white rounded-2xl lg:rounded-[24px] p-2 lg:px-6 lg:py-3 shadow-sm border transition-all duration-300 hover:shadow-md relative group ${
+                  item.errors.length > 0 ? 'border-red-200 bg-red-50/10' : 'border-gray-50'
                 }`}
               >
-                {/* Remove button */}
-                <button 
-                  onClick={() => removeStagedItem(item.tempId)}
-                  className="absolute -top-2 -right-2 w-8 h-8 bg-white text-red-500 rounded-full shadow-md flex items-center justify-center hover:bg-red-50 transition-colors border border-red-50 z-10 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-
-                <div className="space-y-4 flex-1">
-                  {/* Image Preview */}
-                  <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-gray-brand border border-gray-100">
-                    {item.images[0] ? (
-                      <img 
-                        src={item.images[0]} 
-                        alt="Product" 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-brand/20">
-                        <Image className="w-10 h-10 mb-2" />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">No Image</span>
-                      </div>
-                    )}
-                    {item.errors.length > 0 && (
-                      <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center backdrop-blur-[1px]">
-                        <div className="bg-red-600 text-white p-2 rounded-full shadow-lg">
-                          <AlertCircle className="w-5 h-5" />
+                <div className="flex flex-col lg:grid lg:grid-cols-[80px_1fr_120px_100px_100px_100px_40px] lg:items-center gap-2 lg:gap-4">
+                  {/* Row 1: Image & Name & Delete */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-10 h-10 lg:w-14 lg:h-14 shrink-0 rounded-lg lg:rounded-xl overflow-hidden bg-gray-brand border border-gray-100">
+                      {item.images[0] ? (
+                        <img 
+                          src={item.images[0]} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-brand/20">
+                          <Image className="w-4 h-4" />
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Form Fields */}
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Product Name</label>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1">
                       <input
                         type="text"
                         value={item.name}
                         onChange={(e) => updateStagedItem(item.tempId, 'name', e.target.value)}
                         placeholder="Product Name"
-                        className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl px-4 py-2.5 text-xs font-bold text-slate-brand transition-all"
+                        className="w-full bg-transparent border-b border-transparent focus:border-purple-brand outline-none py-0 text-[11px] lg:text-xs font-bold text-slate-brand"
                       />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Description</label>
-                      <textarea
+                      <input
+                        type="text"
                         value={item.description}
                         onChange={(e) => updateStagedItem(item.tempId, 'description', e.target.value)}
-                        placeholder="Product description..."
-                        className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl px-4 py-2.5 text-[10px] text-slate-brand/60 h-20 resize-none transition-all leading-tight font-medium"
+                        placeholder="Desc..."
+                        className="w-full bg-transparent border-b border-transparent focus:border-purple-brand outline-none py-0 text-[9px] text-slate-brand/40 font-medium truncate"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Category</label>
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateStagedItem(item.tempId, 'category', e.target.value)}
-                          className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl px-2 py-2.5 text-[11px] font-bold text-purple-brand transition-all cursor-pointer"
-                        >
-                          <option value="">Select...</option>
-                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Price (₦)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-brand/30">₦</span>
-                          <input
-                            type="number"
-                            value={item.price}
-                            onChange={(e) => updateStagedItem(item.tempId, 'price', Number(e.target.value))}
-                            className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl pl-6 pr-3 py-2.5 text-xs font-bold text-slate-brand font-mono transition-all"
-                          />
-                        </div>
-                      </div>
+                    <button 
+                      onClick={() => removeStagedItem(item.tempId)}
+                      className="lg:hidden w-7 h-7 flex items-center justify-center text-red-400 hover:bg-red-50 rounded-full transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Grid for other fields on Mobile - Optimized for Row Format */}
+                  <div className="grid grid-cols-4 lg:contents gap-2 items-center border-t border-gray-50 pt-2 lg:pt-0 lg:border-t-0">
+                    {/* Category */}
+                    <div className="flex flex-col">
+                      <select
+                        value={item.category}
+                        onChange={(e) => updateStagedItem(item.tempId, 'category', e.target.value)}
+                        className="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-purple-brand outline-none rounded-lg px-0.5 py-0.5 text-[9px] lg:text-[10px] font-bold text-purple-brand cursor-pointer"
+                      >
+                        <option value="">Cat...</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Stock</label>
+                    {/* Price */}
+                    <div className="flex flex-col">
+                      <div className="relative">
                         <input
                           type="number"
-                          value={item.stock}
-                          onChange={(e) => updateStagedItem(item.tempId, 'stock', Number(e.target.value))}
-                          className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl px-4 py-2.5 text-xs font-bold text-slate-brand transition-all font-mono"
+                          value={item.price}
+                          onChange={(e) => updateStagedItem(item.tempId, 'price', Number(e.target.value))}
+                          className="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-purple-brand outline-none rounded-lg px-0.5 py-0.5 text-[9px] lg:text-[10px] font-bold text-slate-brand font-mono"
                         />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-brand/40 uppercase tracking-widest px-1">Status</label>
-                        <select
-                          value={item.status}
-                          onChange={(e) => updateStagedItem(item.tempId, 'status', e.target.value)}
-                          className="w-full bg-gray-brand border border-transparent focus:border-purple-brand outline-none rounded-xl px-2 py-2.5 text-[10px] font-bold text-slate-brand transition-all cursor-pointer uppercase tracking-widest"
-                        >
-                          <option value="active">Active</option>
-                          <option value="draft">Draft</option>
-                          <option value="out_of_stock">Out</option>
-                        </select>
                       </div>
                     </div>
 
-                    {/* Error Messages */}
-                    {item.errors.length > 0 && (
-                      <div className="mt-2 space-y-1.5">
-                        {item.errors.map((err, i) => (
-                          <div key={i} className="bg-red-50 text-red-600 text-[9px] px-3 py-1.5 rounded-xl font-bold flex items-center gap-2 border border-red-100">
-                            <AlertCircle className="w-3 h-3" /> {err}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Stock */}
+                    <div className="flex flex-col">
+                      <input
+                        type="number"
+                        value={item.stock}
+                        onChange={(e) => updateStagedItem(item.tempId, 'stock', Number(e.target.value))}
+                        className="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-purple-brand outline-none rounded-lg px-0.5 py-0.5 text-[9px] lg:text-[10px] font-bold text-slate-brand font-mono"
+                      />
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex flex-col">
+                      <select
+                        value={item.status}
+                        onChange={(e) => updateStagedItem(item.tempId, 'status', e.target.value)}
+                        className="w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-purple-brand outline-none rounded-lg px-0.5 py-0.5 text-[8px] lg:text-[9px] font-bold text-slate-brand uppercase tracking-tighter cursor-pointer"
+                      >
+                        <option value="active">Act</option>
+                        <option value="draft">Dft</option>
+                        <option value="out_of_stock">Out</option>
+                      </select>
+                    </div>
                   </div>
+
+                  {/* Desktop Remove Button */}
+                  <div className="hidden lg:flex justify-center">
+                    <button 
+                      onClick={() => removeStagedItem(item.tempId)}
+                      className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Desktop Error Tooltip */}
+                  {item.errors.length > 0 && (
+                    <div className="lg:col-span-7 mt-1 px-2 py-1 bg-red-50 text-red-600 text-[8px] font-bold rounded-md flex items-center gap-1.5 border border-red-100">
+                      <AlertCircle className="w-3 h-3" />
+                      {item.errors.join(' • ')}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
