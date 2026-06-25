@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
-import { Product, Category } from '../types';
+import { ArrowLeft, MessageSquare, ZoomIn, X, ShieldAlert, ShoppingBag, CheckCircle, ArrowRight, Truck, Info, Clock, Loader2 } from 'lucide-react';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { Product, Category, StoreSettings } from '../types';
 
 interface ProductDetailViewProps {
   product: Product;
   allProducts: Product[];
   categories: Category[];
+  settings: StoreSettings | null;
   onBack: () => void;
   onSelectProduct: (productId: string) => void;
   whatsappNumber: string;
@@ -16,6 +19,7 @@ export default function ProductDetailView({
   product,
   allProducts,
   categories,
+  settings,
   onBack,
   onSelectProduct,
   whatsappNumber,
@@ -25,6 +29,8 @@ export default function ProductDetailView({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [addFeedback, setAddFeedback] = useState(false);
+  const [isReserving, setIsReserving] = useState(false);
+  const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
 
   // Generate size choices based on category type
   const isWomens = ['heels', 'womens-wears'].includes(product.category);
@@ -45,7 +51,7 @@ export default function ProductDetailView({
     .filter(p => p.category === product.category && p.id !== product.id && p.status === 'active')
     .slice(0, 4);
 
-  const handleWhatsAppOrder = () => {
+  const handleWhatsAppOrder = async () => {
     // Validation
     if (!product.stock || product.status === 'out_of_stock') return;
     
@@ -55,20 +61,51 @@ export default function ProductDetailView({
       return;
     }
 
-    const formattingPrice = product.price.toLocaleString();
-    const sizeLine = isBags ? '' : `\nSize: ${selectedSize}`;
+    setIsReserving(true);
 
-    const text = `Hello Aronee Wears,
+    try {
+      // 1. Create Reservation (valid for 30 mins)
+      const expiryDate = new Date();
+      expiryDate.setMinutes(expiryDate.getMinutes() + 30);
+
+      await addDoc(collection(db, 'reservations'), {
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        status: 'pending',
+        expiresAt: Timestamp.fromDate(expiryDate),
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Decrement Stock
+      const productRef = doc(db, 'products', product.id);
+      await updateDoc(productRef, {
+        stock: increment(-1)
+      });
+
+      // 3. Open WhatsApp
+      const formattingPrice = product.price.toLocaleString();
+      const sizeLine = isBags ? '' : `\nSize: ${selectedSize}`;
+      const text = `Hello Aronee Wears,
 
 I would like to order:
 
 Product Name: ${product.name}${sizeLine}
 Price: ₦${formattingPrice}
 
-Please provide payment and delivery details.`;
+Please provide payment details to confirm my order.`;
 
-    const encodedText = encodeURIComponent(text);
-    window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${encodedText}`, '_blank');
+      const encodedText = encodeURIComponent(text);
+      window.open(`https://wa.me/${whatsappNumber.replace(/\+/g, '')}?text=${encodedText}`, '_blank');
+      
+      // 4. Show Delivery Info
+      setShowDeliveryInfo(true);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to process reservation. Please try again.');
+    } finally {
+      setIsReserving(false);
+    }
   };
 
   const handleAddToCartClick = () => {
@@ -224,10 +261,15 @@ Please provide payment and delivery details.`;
                 {/* 1. Direct WhatsApp Purchase (Primary CTA) */}
                 <button
                   onClick={handleWhatsAppOrder}
-                  className="flex-1 bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-4.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 transition-all cursor-pointer flex items-center justify-center space-x-2.5"
+                  disabled={isReserving}
+                  className="flex-1 bg-purple-brand text-white font-bold text-sm tracking-widest uppercase py-4.5 px-8 rounded-full shadow-lg hover:bg-opacity-95 transition-all cursor-pointer flex items-center justify-center space-x-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <MessageSquare className="w-5 h-5 fill-white stroke-none" />
-                  <span>Order via WhatsApp Now</span>
+                  {isReserving ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <MessageSquare className="w-5 h-5 fill-white stroke-none" />
+                  )}
+                  <span>{isReserving ? 'Reserving Stock...' : 'Order via WhatsApp Now'}</span>
                 </button>
 
                 {/* 2. Add to Order Draft/Cart */}
@@ -246,6 +288,17 @@ Please provide payment and delivery details.`;
               <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 p-3.5 rounded-r-xl flex items-center space-x-2.5 text-xs animate-fade-in">
                 <CheckCircle className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
                 <span className="font-semibold">Successfully added product to your custom WhatsApp Order Draft list! See navbar.</span>
+              </div>
+            )}
+            
+            {/* Reservation Info Notice */}
+            {product.stock > 0 && (
+              <div className="bg-slate-brand/5 p-4 rounded-2xl flex items-start space-x-3 text-[10px] leading-relaxed text-slate-brand/60 border border-slate-brand/5">
+                <Clock className="w-4 h-4 shrink-0 text-purple-brand" />
+                <p>
+                  Clicking "Order" will <strong>reserve this item for you for 30 minutes</strong>. 
+                  Please complete payment on WhatsApp within this window to confirm your order.
+                </p>
               </div>
             )}
           </div>
@@ -304,6 +357,64 @@ Please provide payment and delivery details.`;
             ))}
           </div>
         </section>
+      )}
+
+      {/* Delivery Info Modal */}
+      {showDeliveryInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-brand/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-scale-in">
+            <div className="bg-purple-brand p-6 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-xl">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold font-display uppercase tracking-widest text-sm">Delivery Information</h3>
+              </div>
+              <button onClick={() => setShowDeliveryInfo(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-purple-brand/10 flex items-center justify-center shrink-0">
+                    <span className="text-purple-brand font-bold text-xs font-mono">01</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-brand text-xs uppercase tracking-wider mb-1">Within Lagos</h4>
+                    <p className="text-xs text-slate-brand/60 leading-relaxed font-medium">Estimated arrival in <span className="text-purple-brand font-bold">{settings?.deliveryLagos || '2-3 days'}</span> after confirmation.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-purple-brand/10 flex items-center justify-center shrink-0">
+                    <span className="text-purple-brand font-bold text-xs font-mono">02</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-brand text-xs uppercase tracking-wider mb-1">Outside Lagos</h4>
+                    <p className="text-xs text-slate-brand/60 leading-relaxed font-medium">Estimated arrival in <span className="text-purple-brand font-bold">{settings?.deliveryOutside || '4-5 days'}</span> after confirmation.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-start gap-3">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-amber-800 leading-relaxed">
+                  Your product is currently <strong>reserved for 30 minutes</strong>. 
+                  Send the WhatsApp message to get payment details and secure your item!
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setShowDeliveryInfo(false)}
+                className="w-full bg-slate-brand text-white font-bold text-xs uppercase tracking-widest py-4 rounded-xl shadow-lg hover:bg-opacity-95 transition-all"
+              >
+                I Understand
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Image Fullscreen Modal View zoom */}

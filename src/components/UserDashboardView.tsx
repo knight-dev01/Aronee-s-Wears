@@ -2,6 +2,8 @@ import React from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { motion } from 'motion/react';
 import { User, Mail, Calendar, Package, LogOut, Heart, Clock, ChevronRight } from 'lucide-react';
+import { formatRelativeTime } from '../lib/time';
+import { RelativeTime } from './RelativeTime';
 
 interface UserDashboardViewProps {
   user: FirebaseUser | null;
@@ -12,8 +14,8 @@ interface UserDashboardViewProps {
 export default function UserDashboardView({ user, onLogout, onViewChange }: UserDashboardViewProps) {
   if (!user) return null;
 
-  const joinedDate = user.metadata.creationTime 
-    ? new Date(user.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const joinedDateContent = user.metadata.creationTime 
+    ? <RelativeTime date={user.metadata.creationTime} />
     : 'Recently';
 
   return (
@@ -46,7 +48,7 @@ export default function UserDashboardView({ user, onLogout, onViewChange }: User
                 </div>
                 <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full border border-white/10">
                   <Calendar className="w-3.5 h-3.5 text-purple-brand" />
-                  <span>Joined {joinedDate}</span>
+                  <span>Joined {joinedDateContent}</span>
                 </div>
               </div>
             </div>

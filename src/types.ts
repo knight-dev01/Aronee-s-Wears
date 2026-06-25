@@ -46,6 +46,18 @@ export interface StoreSettings {
   instagramUrl: string;
   facebookUrl: string;
   businessHours: string;
+  deliveryLagos: string;
+  deliveryOutside: string;
+}
+
+export interface Reservation {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  status: 'pending' | 'confirmed' | 'expired' | 'cancelled';
+  expiresAt: Timestamp;
+  createdAt: Timestamp;
 }
 
 export interface Admin {

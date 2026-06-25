@@ -68,14 +68,27 @@ service cloud.firestore {
     
     // Settings Validation Blueprints
     function isValidSettings(data) {
-      return data.keys().hasAll(['whatsappNumber', 'contactAddress', 'contactEmail', 'instagramUrl', 'facebookUrl', 'businessHours']) &&
-             data.keys().size() == 6 &&
+      return data.keys().hasAll(['whatsappNumber', 'contactAddress', 'contactEmail', 'instagramUrl', 'facebookUrl', 'businessHours', 'deliveryLagos', 'deliveryOutside']) &&
+             data.keys().size() == 8 &&
              data.whatsappNumber is string && data.whatsappNumber.size() > 0 && data.whatsappNumber.size() <= 30 &&
              data.contactAddress is string && data.contactAddress.size() <= 500 &&
              data.contactEmail is string && data.contactEmail.size() <= 150 &&
              data.instagramUrl is string && data.instagramUrl.size() <= 500 &&
              data.facebookUrl is string && data.facebookUrl.size() <= 500 &&
-             data.businessHours is string && data.businessHours.size() <= 200;
+             data.businessHours is string && data.businessHours.size() <= 200 &&
+             data.deliveryLagos is string && data.deliveryLagos.size() <= 100 &&
+             data.deliveryOutside is string && data.deliveryOutside.size() <= 100;
+    }
+    
+    // Reservation Validation Blueprints
+    function isValidReservation(data) {
+      return data.keys().hasAll(['productId', 'productName', 'quantity', 'status', 'expiresAt', 'createdAt']) &&
+             data.keys().size() == 6 &&
+             data.productId is string && data.productName is string &&
+             data.quantity is int && data.quantity > 0 &&
+             data.status is string && (data.status == 'pending' || data.status == 'confirmed' || data.status == 'expired' || data.status == 'cancelled') &&
+             data.expiresAt is timestamp &&
+             data.createdAt is timestamp;
     }
     
     // Admin Record Validation
@@ -116,6 +129,14 @@ service cloud.firestore {
     match /admins/{adminId} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
       allow write: if isAdmin() && isValidId(adminId) && isValidAdmin(incoming());
+    }
+
+    // Reservations Collection
+    match /reservations/{reservationId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(reservationId) && isValidReservation(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidReservation(incoming());
+      allow delete: if isAdmin();
     }
   }
 }

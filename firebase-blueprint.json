@@ -101,9 +101,46 @@
         "businessHours": {
           "type": "string",
           "description": "Weekly business hours description."
+        },
+        "deliveryLagos": {
+          "type": "string",
+          "description": "Estimated delivery time for Lagos."
+        },
+        "deliveryOutside": {
+          "type": "string",
+          "description": "Estimated delivery time outside Lagos."
         }
       },
-      "required": ["whatsappNumber", "contactAddress", "contactEmail", "instagramUrl", "facebookUrl", "businessHours"]
+      "required": ["whatsappNumber", "contactAddress", "contactEmail", "instagramUrl", "facebookUrl", "businessHours", "deliveryLagos", "deliveryOutside"]
+    },
+    "reservation": {
+      "title": "Stock Reservation",
+      "description": "Temporary stock hold while WhatsApp chat is pending.",
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string"
+        },
+        "productName": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "confirmed", "expired", "cancelled"]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["productId", "productName", "quantity", "status", "expiresAt", "createdAt"]
     },
     "admin": {
       "title": "Admin",
@@ -159,6 +196,10 @@
     "/subscribers/{subscriberId}": {
       "schema": "subscriber",
       "description": "User email list for storefront updates and discounts."
+    },
+    "/reservations/{reservationId}": {
+      "schema": "reservation",
+      "description": "Temporary stock holds for WhatsApp orders."
     }
   }
 }

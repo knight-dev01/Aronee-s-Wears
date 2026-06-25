@@ -41,6 +41,7 @@ export default function App() {
   // Firestore DB States
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [reservations, setReservations] = useState<any[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
 
   // Auth States
@@ -214,7 +215,9 @@ export default function App() {
             contactEmail: d.contactEmail || '',
             instagramUrl: d.instagramUrl || '',
             facebookUrl: d.facebookUrl || '',
-            businessHours: d.businessHours || ''
+            businessHours: d.businessHours || '',
+            deliveryLagos: d.deliveryLagos || '2-3 days',
+            deliveryOutside: d.deliveryOutside || '4-5 days'
           });
         }
       },
@@ -223,10 +226,25 @@ export default function App() {
       }
     );
 
+    let unsubscribeReservations = () => {};
+    if (isAdmin) {
+      unsubscribeReservations = onSnapshot(
+        query(collection(db, 'reservations'), orderBy('createdAt', 'desc'), limit(100)),
+        (snapshot) => {
+          const resData: any[] = [];
+          snapshot.forEach((doc) => {
+            resData.push({ id: doc.id, ...doc.data() });
+          });
+          setReservations(resData);
+        }
+      );
+    }
+
     return () => {
       unsubscribeProducts();
       unsubscribeCategories();
       unsubscribeSettings();
+      unsubscribeReservations();
     };
   }, [isAdmin, isInitializing]);
 
@@ -426,6 +444,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                 product={activeDetailProduct}
                 allProducts={products}
                 categories={categories}
+                settings={settings}
                 onBack={() => setSelectedProductId(null)}
                 onSelectProduct={handleSelectProduct}
                 whatsappNumber={settings?.whatsappNumber || '+2348123456789'}
@@ -477,6 +496,7 @@ Please provide payment instructions and coordinate home delivery options.`;
                     products={products}
                     categories={categories}
                     settings={settings}
+                    reservations={reservations}
                     onRefreshData={forceRefreshStats}
                   />
                 )}

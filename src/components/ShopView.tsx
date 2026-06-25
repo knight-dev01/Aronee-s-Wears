@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Search, SlidersHorizontal, ArrowUpDown, RefreshCw, Star, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, RefreshCw, Star, ShoppingBag, ArrowLeft, Clock } from 'lucide-react';
 import { Product, Category } from '../types';
 import { motion } from 'motion/react';
+import { formatRelativeTime } from '../lib/time';
+import { RelativeTime } from './RelativeTime';
 
 interface ShopViewProps {
   products: Product[];
@@ -369,9 +371,15 @@ export default function ShopView({
                         loading="lazy"
                       />
                       {isRecent && (
-                        <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">
-                          JUST IN
-                        </span>
+                        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-10">
+                          <span className="bg-emerald-500 text-white text-[8px] font-bold font-mono py-1 px-2 rounded-full shadow-sm">
+                            JUST IN
+                          </span>
+                          <RelativeTime 
+                            date={product.createdAt} 
+                            className="bg-white/90 backdrop-blur-sm text-slate-brand text-[7px] font-bold py-0.5 px-1.5 rounded-full shadow-xs uppercase tracking-tighter" 
+                          />
+                        </div>
                       )}
                       {product.discountPrice && (
                         <span className="absolute bottom-2 left-2 bg-purple-brand text-white text-[9px] font-bold font-mono py-1 px-2.5 rounded-full shadow-sm z-10">

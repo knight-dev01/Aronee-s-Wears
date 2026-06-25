@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Plus, Edit, Trash2, LayoutDashboard, ShoppingCart, FolderTree, AlertTriangle, 
   Settings, LogOut, CheckCircle, HelpCircle, Save, X, RefreshCw, Database,
-  Image as ImageIcon, Upload, Loader2, Camera
+  Image as ImageIcon, Upload, Loader2, Camera, Clock, Check, Ban
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { addDoc, doc, updateDoc, deleteDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { Product, Category, StoreSettings } from '../types';
+import { Product, Category, StoreSettings, Reservation } from '../types';
 import { forceResetDatabase } from '../data/seed';
+import { formatRelativeTime } from '../lib/time';
+import { RelativeTime } from './RelativeTime';
 import BulkUpload from './BulkUpload';
 
 interface AdminViewProps {
@@ -21,6 +23,7 @@ interface AdminViewProps {
   products: Product[];
   categories: Category[];
   settings: StoreSettings | null;
+  reservations?: Reservation[];
   onRefreshData: () => Promise<void>;
 }
 
@@ -32,11 +35,12 @@ export default function AdminView({
   products,
   categories,
   settings,
+  reservations = [],
   onRefreshData
 }: AdminViewProps) {
   
   // Dashboard navigation sub-state
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'inventory' | 'bulk' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'inventory' | 'reservations' | 'settings'>('overview');
 
   // Load Status feedback
   const [actionSuccess, setActionSuccess] = useState<string>('');
@@ -45,6 +49,7 @@ export default function AdminView({
   // Forms / Modal state
   const [productEditing, setProductEditing] = useState<Product | null>(null);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   
   const [categoryEditing, setCategoryEditing] = useState<Category | null>(null);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
@@ -125,6 +130,52 @@ export default function AdminView({
   const displayNotice = (message: string) => {
     setActionSuccess(message);
     setTimeout(() => setActionSuccess(''), 4500);
+  };
+
+  const photoInputRefSingle = useRef<HTMLInputElement>(null);
+
+  const handleMultiPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const compressionOptions = {
+      maxSizeMB: 0.8,
+      maxWidthOrHeight: 1200,
+      useWebWorker: true
+    };
+
+    try {
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const compressedFile = await imageCompression(file, compressionOptions);
+        const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, compressedFile);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        uploadedUrls.push(downloadUrl);
+        setUploadProgress(((i + 1) / files.length) * 100);
+      }
+      
+      const existingUrls = prodImages ? prodImages.split(',').map(s => s.trim()).filter(s => s !== '') : [];
+      setProdImages([...existingUrls, ...uploadedUrls].join(', '));
+      displayNotice(`Successfully uploaded ${files.length} photos!`);
+    } catch (err) {
+      console.error(err);
+      displayNotice('Failed to upload some photos.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (photoInputRefSingle.current) photoInputRefSingle.current.value = '';
+    }
+  };
+
+  const removeSingleImage = (index: number) => {
+    const existingUrls = prodImages ? prodImages.split(',').map(s => s.trim()).filter(s => s !== '') : [];
+    existingUrls.splice(index, 1);
+    setProdImages(existingUrls.join(', '));
   };
 
   // Setup Product Inputs for Add or Edit
@@ -321,9 +372,52 @@ export default function AdminView({
         contactEmail: settingsForm.contactEmail,
         instagramUrl: settingsForm.instagramUrl,
         facebookUrl: settingsForm.facebookUrl,
-        businessHours: settingsForm.businessHours
+        businessHours: settingsForm.businessHours,
+        deliveryLagos: settingsForm.deliveryLagos,
+        deliveryOutside: settingsForm.deliveryOutside
       });
       displayNotice('Global store settings locked successfully!');
+      await onRefreshData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmSale = async (res: Reservation) => {
+    setActionLoading(true);
+    try {
+      // 1. Mark reservation as confirmed
+      await updateDoc(doc(db, 'reservations', res.id), { status: 'confirmed' });
+      
+      // 2. Decrement stock permanently (it was already reserved, so we don't need to decrement again 
+      // if our logic treats reserved as 'out of stock' for others. 
+      // Actually, my plan was: WhatsApp Click -> Create Reservation (status: pending, decrement product stock by 1).
+      // So if status confirmed, we just leave stock as is.
+      // If status cancelled/expired, we increment stock back.
+      
+      displayNotice(`Sale confirmed for ${res.productName}!`);
+      await onRefreshData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelReservation = async (res: Reservation) => {
+    setActionLoading(true);
+    try {
+      // 1. Mark reservation as cancelled
+      await updateDoc(doc(db, 'reservations', res.id), { status: 'cancelled' });
+      
+      // 2. Restore stock
+      await updateDoc(doc(db, 'products', res.productId), {
+        stock: increment(res.quantity)
+      });
+      
+      displayNotice(`Reservation cancelled and stock restored for ${res.productName}.`);
       await onRefreshData();
     } catch (err) {
       console.error(err);
@@ -420,9 +514,9 @@ export default function AdminView({
         {[
           { label: 'Overview', value: 'overview' as const, icon: LayoutDashboard },
           { label: 'Products', value: 'products' as const, icon: ShoppingCart },
+          { label: 'Reservations', value: 'reservations' as const, icon: Clock },
           { label: 'Categories', value: 'categories' as const, icon: FolderTree },
           { label: 'Stock Alerts', value: 'inventory' as const, icon: AlertTriangle },
-          { label: 'Bulk Upload', value: 'bulk' as const, icon: Database },
           { label: 'Contact Settings', value: 'settings' as const, icon: Settings }
         ].map((t) => {
           const isSelected = activeTab === t.value;
@@ -515,13 +609,24 @@ export default function AdminView({
               <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">Manage Wears Inventory</h3>
               <p className="text-[10.5px] text-slate-brand/55">Create customized listings, set prices, and update stock counts.</p>
             </div>
-            <button
-              onClick={() => openProductForm()}
-              className="bg-purple-brand text-white font-bold text-xs py-2.5 px-4.5 rounded-xl flex items-center space-x-1 uppercase tracking-wider shadow-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Product</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="bg-gray-brand text-slate-brand hover:text-purple-brand font-bold text-xs py-2.5 px-4.5 rounded-xl flex items-center space-x-1 uppercase tracking-wider shadow-sm cursor-pointer border border-gray-200 transition-all hover:bg-gray-100"
+              >
+                <Database className="w-4 h-4" />
+                <span className="hidden sm:inline">Bulk Upload</span>
+                <span className="sm:hidden">Bulk</span>
+              </button>
+              <button
+                onClick={() => openProductForm()}
+                className="bg-purple-brand text-white font-bold text-xs py-2.5 px-4.5 rounded-xl flex items-center space-x-1 uppercase tracking-wider shadow-sm cursor-pointer transition-all hover:bg-opacity-90"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Add Product</span>
+                <span className="sm:hidden">Add</span>
+              </button>
+            </div>
           </div>
 
           {/* List display */}
@@ -573,7 +678,9 @@ export default function AdminView({
                           <td className={`p-4 font-mono font-bold ${p.stock === 0 ? 'text-red-600' : 'text-slate-brand'}`}>
                             {p.stock}
                           </td>
-                          <td className="p-4 text-slate-brand/50 font-mono text-[10px]">{updateTime}</td>
+                          <td className="p-4 text-slate-brand/50 font-mono text-[10px]">
+                            <RelativeTime date={p.updatedAt || p.createdAt} />
+                          </td>
                           <td className="p-4">
                             {p.featured ? (
                               <span className="bg-purple-brand/10 text-purple-brand px-2 py-0.5 rounded-full text-[9px] font-bold">YES</span>
@@ -751,15 +858,97 @@ export default function AdminView({
         </div>
       )}
 
-      {/* TAB 5: BULK UPLOAD */}
-      {activeTab === 'bulk' && (
-        <BulkUpload 
-          categories={categories} 
-          onSuccess={async () => {
-            await onRefreshData();
-          }} 
-        />
+      {/* TAB: RESERVATIONS */}
+      {activeTab === 'reservations' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="border-b border-gray-100 pb-4">
+            <h3 className="font-bold text-sm sm:text-base text-slate-brand font-display">Active WhatsApp Reservations</h3>
+            <p className="text-[10.5px] text-slate-brand/55 font-sans">
+              Track products temporarily held when customers click "Order via WhatsApp". 
+              Reservations expire in 30 minutes.
+            </p>
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-2xs">
+            {reservations.length === 0 ? (
+              <div className="p-10 text-center text-slate-brand/50 text-sm">No active or recent reservations.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-brand border-b border-gray-100 text-slate-brand/70 font-semibold uppercase tracking-wider">
+                      <th className="p-4">Product</th>
+                      <th className="p-4">Qty</th>
+                      <th className="p-4">Time Created</th>
+                      <th className="p-4">Expires In</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 font-medium">
+                    {reservations.map((res) => {
+                      const now = new Date();
+                      const expiry = res.expiresAt?.toDate ? res.expiresAt.toDate() : new Date(res.expiresAt as any);
+                      const diffMs = expiry.getTime() - now.getTime();
+                      const diffMin = Math.max(0, Math.floor(diffMs / 60000));
+                      const isExpired = diffMs <= 0 && res.status === 'pending';
+                      
+                      return (
+                        <tr key={res.id} className={`hover:bg-gray-brand/50 transition-colors ${isExpired ? 'opacity-50' : ''}`}>
+                          <td className="p-4 font-bold text-slate-brand">{res.productName}</td>
+                          <td className="p-4 font-mono">{res.quantity}</td>
+                          <td className="p-4 text-slate-brand/50">
+                            <RelativeTime date={res.createdAt} />
+                          </td>
+                          <td className="p-4">
+                            {res.status === 'pending' ? (
+                              <span className={`font-bold ${diffMin < 5 ? 'text-red-600 animate-pulse' : 'text-slate-brand'}`}>
+                                {isExpired ? 'Expired' : `${diffMin} mins`}
+                              </span>
+                            ) : (
+                              <span className="text-slate-brand/30">-</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                              res.status === 'pending' ? (isExpired ? 'bg-gray-200 text-gray-600' : 'bg-amber-100 text-amber-800') :
+                              res.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {isExpired ? 'Expired' : res.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right space-x-2">
+                            {res.status === 'pending' && !isExpired && (
+                              <>
+                                <button
+                                  onClick={() => handleConfirmSale(res)}
+                                  className="bg-emerald-600 text-white p-1 rounded-lg hover:bg-emerald-700 transition-colors"
+                                  title="Confirm Sale"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleCancelReservation(res)}
+                                  className="bg-red-600 text-white p-1 rounded-lg hover:bg-red-700 transition-colors"
+                                  title="Cancel Reservation"
+                                >
+                                  <Ban className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      {/* TAB 5: LOW STOCK ALERTS handled above as TAB 4 */}
 
       {/* TAB 6: CONTACTS AND WHATSAPP SETTINGS */}
       {activeTab === 'settings' && settingsForm && (
@@ -791,6 +980,30 @@ export default function AdminView({
                 required
                 value={settingsForm.contactEmail}
                 onChange={e => setSettingsForm({ ...settingsForm, contactEmail: e.target.value })}
+                className="w-full bg-gray-brand border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-brand outline-none focus:border-purple-brand transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-brand/75 uppercase tracking-wide">Delivery (Lagos)</label>
+              <input
+                type="text"
+                required
+                value={settingsForm.deliveryLagos}
+                onChange={e => setSettingsForm({ ...settingsForm, deliveryLagos: e.target.value })}
+                placeholder="2-3 days"
+                className="w-full bg-gray-brand border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-brand outline-none focus:border-purple-brand transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-brand/75 uppercase tracking-wide">Delivery (Outside Lagos)</label>
+              <input
+                type="text"
+                required
+                value={settingsForm.deliveryOutside}
+                onChange={e => setSettingsForm({ ...settingsForm, deliveryOutside: e.target.value })}
+                placeholder="4-5 days"
                 className="w-full bg-gray-brand border border-gray-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-brand outline-none focus:border-purple-brand transition-all"
               />
             </div>
@@ -856,6 +1069,41 @@ export default function AdminView({
       )}
 
       {/* DETAILED FORM MODAL: PRODUCTS EDIT/CREATE */}
+      {isBulkUploadOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex items-center justify-center animate-fade-in font-sans">
+          <div className="bg-white w-full h-full shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+            <div className="bg-white border-b border-gray-100 px-8 py-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-brand text-white rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-brand font-display uppercase tracking-widest text-sm">Professional Bulk Indexing</h3>
+                  <p className="text-[10px] text-slate-brand/40 font-bold uppercase">Multi-product staging environment</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsBulkUploadOpen(false)} 
+                className="p-2 hover:bg-red-50 hover:text-red-600 rounded-full transition-all text-slate-brand/30 cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto bg-gray-brand/30">
+              <BulkUpload 
+                categories={categories} 
+                onSuccess={async () => {
+                  await onRefreshData();
+                  setIsBulkUploadOpen(false);
+                }} 
+                onClose={() => setIsBulkUploadOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {isProductFormOpen && (
         <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6">
@@ -950,18 +1198,63 @@ export default function AdminView({
                   </select>
                 </div>
 
+                {/* Multi-Photo Gallery Picker */}
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-brand/85 uppercase">Product Gallery</label>
+                    <button
+                      type="button"
+                      onClick={() => photoInputRefSingle.current?.click()}
+                      className="text-[10px] font-bold text-purple-brand hover:underline flex items-center gap-1 uppercase tracking-widest cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Add from Gallery
+                    </button>
+                  </div>
+
+                  <input 
+                    type="file" 
+                    ref={photoInputRefSingle} 
+                    onChange={handleMultiPhotoUpload} 
+                    multiple 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {prodImages.split(',').map(s => s.trim()).filter(s => s !== '').map((url, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-gray-100 group shadow-xs">
+                        <img src={url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={() => removeSingleImage(idx)}
+                          className="absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {isUploading ? (
+                      <div className="aspect-square rounded-2xl border-2 border-dashed border-purple-brand/20 bg-purple-brand/5 flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="w-6 h-6 text-purple-brand animate-spin" />
+                        <span className="text-[8px] font-bold text-purple-brand">{Math.round(uploadProgress)}%</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => photoInputRefSingle.current?.click()}
+                        className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-purple-brand hover:bg-purple-brand/5 transition-all flex flex-col items-center justify-center gap-1.5 group cursor-pointer"
+                      >
+                        <Plus className="w-5 h-5 text-gray-300 group-hover:text-purple-brand" />
+                        <span className="text-[9px] font-bold text-gray-400 group-hover:text-purple-brand uppercase">Add</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="font-bold text-slate-brand/85 uppercase flex justify-between items-center">
-                    <span>Image Gallery URLs</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-purple-brand font-medium">Auto-compressed uploads</span>
-                      <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm ${isUploading ? 'bg-gray-100 text-gray-400' : 'bg-purple-brand text-white hover:bg-purple-brand/90'}`}>
-                        {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-                        {isUploading ? `${Math.round(uploadProgress)}%` : 'Upload File'}
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'product')} disabled={isUploading} />
-                      </label>
-                    </div>
-                  </label>
+                  <label className="font-bold text-slate-brand/85 uppercase">Image Gallery URLs (comma separated)</label>
                   <textarea
                     required rows={2} placeholder="https://unsplash.com/... , https://unsplash.com/..."
                     value={prodImages} onChange={e => setProdImages(e.target.value)}
