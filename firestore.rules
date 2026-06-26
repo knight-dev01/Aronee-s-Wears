@@ -100,10 +100,12 @@ service cloud.firestore {
 
     // Subscriber Record Validation
     function isValidSubscriber(data) {
-      return data.keys().hasAll(['email', 'joinedAt']) &&
-             data.email is string && data.email.size() <= 150 &&
-             (!data.keys().contains('displayName') || data.displayName == null || (data.displayName is string && data.displayName.size() <= 150)) &&
-             data.joinedAt is timestamp;
+      return data.keys().hasAll(['email', 'joinedAt', 'createdAt']) &&
+             data.email is string &&
+             data.joinedAt is timestamp &&
+             data.createdAt is timestamp &&
+             (!data.keys().contains('displayName') || data.displayName is string || data.displayName == null) &&
+             (!data.keys().contains('authProvider') || data.authProvider is string);
     }
 
     // Welcome Email Record Validation

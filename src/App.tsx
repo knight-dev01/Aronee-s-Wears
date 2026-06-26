@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, getDocs, doc, getDoc, setDoc, serverTimestamp, limit, onSnapshot, orderBy, where 
+  collection, query, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp, limit, onSnapshot, orderBy, where 
 } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { ShoppingBag, X, MessageSquare, AlertCircle, RefreshCw, Trash2, ArrowUpRight, Truck, Info } from 'lucide-react';
@@ -18,9 +18,9 @@ import ContactView from './components/ContactView';
 import ProductDetailView from './components/ProductDetailView';
 import AdminView from './components/AdminView';
 import UserDashboardView from './components/UserDashboardView';
+import WelcomeView from './components/WelcomeView';
 import WhatsAppButton from './components/WhatsAppButton';
 import Toast from './components/Toast';
-import OtpVerification from './components/OtpVerification';
 import { logWhatsAppRedirect } from './utils/whatsapp';
 
 interface CartItem {
@@ -63,9 +63,8 @@ export default function App() {
 
   // Auth States
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [unverifiedUser, setUnverifiedUser] = useState<FirebaseUser | null>(null);
-  const [showOtpScreen, setShowOtpScreen] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
   // Shopper's Order Draft (Cart Drawer) States
@@ -107,27 +106,35 @@ export default function App() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Enforce secure first-time user verification check
-        try {
-          const subscriberDocRef = doc(db, 'subscribers', currentUser.uid);
-          const subscriberDocSnap = await getDoc(subscriberDocRef);
+        setUser(currentUser);
+        
+        // Check if new user
+        const userDocRef = doc(db, 'subscribers', currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists()) {
+          // New User
+          await setDoc(userDocRef, {
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            createdAt: serverTimestamp(),
+            joinedAt: serverTimestamp(),
+            authProvider: 'google.com'
+          });
+
+          // Trigger Welcome Email
+          await addDoc(collection(db, 'welcomeEmails'), {
+            userId: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            status: 'pending',
+            template: 'welcome',
+            couponCode: 'WELCOME10',
+            createdAt: serverTimestamp()
+          });
           
-          if (subscriberDocSnap.exists() && subscriberDocSnap.data()?.otpVerified === true) {
-            // Already verified
-            setUser(currentUser);
-            setUnverifiedUser(null);
-            setShowOtpScreen(false);
-          } else {
-            // Unverified or first-time user
-            setUnverifiedUser(currentUser);
-            setShowOtpScreen(true);
-            setUser(null);
-          }
-        } catch (err) {
-          console.warn('First-time subscriber check bypassed (falling back to verification prompt):', err);
-          setUnverifiedUser(currentUser);
-          setShowOtpScreen(true);
-          setUser(null);
+          setShowWelcome(true);
+        } else {
+            showToast("Login successful! Welcome back.");
         }
 
         // Any Google Login where the email is 'greatifet12@gmail.com' is treated as Admin
@@ -147,8 +154,6 @@ export default function App() {
         }
       } else {
         setUser(null);
-        setUnverifiedUser(null);
-        setShowOtpScreen(false);
         setIsAdmin(false);
       }
       setIsInitializing(false);
@@ -307,15 +312,6 @@ export default function App() {
       setCurrentView('home');
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleOtpVerified = () => {
-    if (unverifiedUser) {
-      setUser(unverifiedUser);
-      setUnverifiedUser(null);
-      setShowOtpScreen(false);
-      showToast("Verification successful! Welcome to Aronee's Wears.");
     }
   };
 
@@ -812,12 +808,10 @@ Please provide payment instructions and coordinate home delivery options.`;
       {/* FLOATING SUPPORT BUTTON */}
       <WhatsAppButton phoneNumber={settings?.whatsappNumber} onShowToast={showToast} />
 
-      {/* OTP VERIFICATION SYSTEM */}
-      {showOtpScreen && unverifiedUser && (
-        <OtpVerification 
-          user={unverifiedUser} 
-          onVerified={handleOtpVerified} 
-          onCancel={handleLogout} 
+      {/* WELCOME VIEW FOR NEW USERS */}
+      {showWelcome && (
+        <WelcomeView 
+          onClose={() => setShowWelcome(false)} 
         />
       )}
 
