@@ -171,7 +171,7 @@ export default function App() {
     // Refresh/Initialize database when authorization states are clarified
     const handleDbInit = async () => {
       try {
-        await checkAndSeedDatabase();
+        await checkAndSeedDatabase(isAdmin);
       } catch (err) {
         console.warn('Initial seeding lookup bypassed:', err);
       }
@@ -179,6 +179,7 @@ export default function App() {
     handleDbInit();
 
     // Query active & out_of_stock products for public shoppers to prevent blanket-query permissions violations
+    // We default to non-admin query until isAdmin is confirmed
     const productsQuery = isAdmin
       ? query(collection(db, 'products'), orderBy('createdAt', 'desc'))
       : query(collection(db, 'products'), where('status', 'in', ['active', 'out_of_stock']));

@@ -192,7 +192,10 @@ export const defaultSettings = {
   businessHours: 'Monday - Saturday: 8:00 AM - 7:00 PM'
 };
 
-export async function checkAndSeedDatabase() {
+export async function checkAndSeedDatabase(isAdmin: boolean) {
+  if (!isAdmin) {
+    return false;
+  }
   try {
     // Check settings first
     const settingsDocRef = doc(db, 'settings', 'current');
@@ -202,6 +205,10 @@ export async function checkAndSeedDatabase() {
     const productsSnap = await getDocs(query(collection(db, 'products'), limit(1)));
     
     if (!settingsSnap.exists() || productsSnap.empty) {
+      if (!isAdmin) {
+        console.log('Database appears empty, but you do not have permission to seed it.');
+        return false;
+      }
       console.log('Database appears empty or incomplete. Seeding starting...');
       
       const batch = writeBatch(db);

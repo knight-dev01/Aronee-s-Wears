@@ -142,9 +142,7 @@ service cloud.firestore {
     
     // Products Collection
     match /products/{productId} {
-      // Non-admins can only read active products
-      allow get: if true;
-      allow list: if isAdmin() || (resource.data.status == 'active' || resource.data.status == 'out_of_stock');
+      allow read: if true;
       
       allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) && incoming().createdAt == request.time;
       
@@ -171,8 +169,9 @@ service cloud.firestore {
 
     // Subscribers Collection
     match /subscribers/{subscriberId} {
-      allow read: if isAdmin();
-      allow write: if isSignedIn() && request.auth.uid == subscriberId && isValidSubscriber(incoming());
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == subscriberId);
+      allow create, update: if isSignedIn() && request.auth.uid == subscriberId && isValidSubscriber(incoming());
+      allow delete: if isAdmin();
     }
 
     // Reservations Collection
